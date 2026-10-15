@@ -193,3 +193,80 @@ Two consequences for this project:
 
 ### References
 [1] Nick Cammarata, "Neural Networks Are Already Clean," Goodfire. https://already-clean.goodfire.com/ (accessed 2026-10-15). Informal essay and working hypothesis. A technical companion paper on language-model neurons is forthcoming; check for it before Phase 1.
+
+## Addendum B: Cloud setup (Phase 1+)
+
+### Provider and constraints
+- RunPod Secure Cloud pods with one network volume [1].
+- Network volume constraints [1]:
+  - They only work with Secure Cloud pods.
+  - Each lives in one data center, which limits the GPUs available to it.
+  - They must be attached when the pod is created.
+- GPU tiers:
+  - 48 GB (RTX A6000 / L40S): the default. Covers Qwen3-4B/8B, vLLM generation, SAE training, and Gemma 3 12B.
+  - 80 GB (A100 / H100): 27B-class models only.
+- Volume size: start at 300–500 GB (~$21–35/month at $0.07/GB/month under 1 TB [2]). Grow it if needed.
+- SSH: Secure Cloud pods have a public IP, so full SSH is available. rsync/scp need full SSH; RunPod's basic proxied SSH is for quick access, not file transfer [3].
+
+### Manual steps (Luke, once)
+1. Create a private GitHub repo and push from WSL.
+2. SSH keys:
+   - Generate one key on Windows (`ssh-keygen -t ed25519` in PowerShell). VS Code Remote-SSH uses this one.
+   - Generate a second key in WSL. rsync uses this one.
+   - Paste both `.pub` file contents into RunPod account settings, one per line, including the `ssh-ed25519` prefix [3].
+   - Keys only apply to pods created after they're added.
+3. Fund the account with prepaid credit only (no auto-reload). If the balance hits $0, pods with a network volume stop and the data is kept [1].
+4. Create the network volume in a data center that offers both 48 GB and 80 GB GPUs.
+5. Create a pod:
+   - Official PyTorch template, Secure Cloud.
+   - Network volume attached at `/workspace`.
+   - `HF_TOKEN` set as a pod environment variable.
+6. Connect with VS Code Remote-SSH and open `/workspace/llm_interp` [4]. Install the coding agent extension on the remote side.
+
+### Layout on the volume
+- `/workspace/llm_interp`: the repo.
+- `/workspace/hf`: the Hugging Face cache (`HF_HOME`).
+- `/workspace/runs`: the store root.
+- `/workspace/.cache/uv`: the uv package cache (`UV_CACHE_DIR`).
+- Virtual environments go on the container disk, which is wiped when the pod restarts. The setup script rebuilds them quickly from the uv cache.
+
+### Build
+1. `scripts/cloud_setup.sh` (idempotent):
+   - Check the GPU with `nvidia-smi`; install uv if missing.
+   - Export `HF_HOME`, `UV_CACHE_DIR`, and the store root, and persist them to `~/.bashrc`.
+   - Clone or pull the repo.
+   - Run `uv sync` for the main environment (CUDA torch matching the driver). Build a separate vLLM environment.
+   - Pre-download model weights for the chosen config into `HF_HOME`. `HF_TOKEN` comes from the environment and is never written into the repo.
+   - Run `doctor` with the cloud config.
+2. `scripts/run.sh <run_id> <command>`:
+   - Run the command inside a named `tmux` session, with logs in `/workspace/runs/<run_id>/logs/`.
+   - Write a heartbeat file while running, and a `DONE` marker with the exit code at the end.
+   - Optional `--stop-pod-when-done` flag: read the pod ID from the environment (verify the variable name RunPod sets) and call `runpodctl pod stop <id>`. If the CLI or ID isn't available, skip with a warning.
+3. `doctor` additions:
+   - Report GPU, driver, CUDA version, bf16 support, and free VRAM.
+   - Fail if the store root or `HF_HOME` is not on the network volume; otherwise the data vanishes with the pod.
+   - Benchmark write/read throughput on the store path.
+   - Compare the run's estimated size with free space on the volume.
+4. `scripts/pull_run.sh <run_id> <dest>`:
+   - rsync over full SSH from the pod to a local archive path.
+   - Verify checksums.
+   - Optional `--delete-remote-after-verify` flag.
+5. `scripts/backup_meta.sh`: copy the small, irreplaceable files (traces, index, spans, and annotations Parquet tables; manifests; configs) to a backup location. Default: a `meta/` folder committed to the repo.
+
+### Storage policy
+- Precious (back up every run): token IDs, metadata, spans, annotations, manifests, configs. These are small.
+- Regenerable (treat as cache): activations. Re-capture them from stored token IDs with the same model revision and dtype. Values may differ slightly across GPU types; the manifest records hardware.
+- Zarr chunks of ~4,096 tokens (16 MB for the Qwen3-0.6B residual stream in fp32; 32 MB for Qwen3-8B in bf16) keep reads sequential. This matters on spinning archive drives.
+- Local: the Phase 0 store lives on the WSL disk. Finished cloud runs are archived to Luke's 2 TB drive with `pull_run.sh`, then deleted from the volume.
+
+### Cost guardrails
+- Terminate pods when idle; the volume keeps everything.
+- Default to 48 GB cards; rent 80 GB only for 27B-class runs.
+- Check volume usage monthly and prune runs that have already been pulled.
+
+### References
+[1] RunPod docs, storage overview: https://docs.runpod.io/storage/overview
+[2] RunPod docs, Serverless pricing (storage rates): https://docs.runpod.io/serverless/pricing
+[3] RunPod docs, use SSH: https://docs.runpod.io/pods/configuration/use-ssh
+[4] RunPod docs, connect VS Code or Cursor: https://docs.runpod.io/pods/configuration/connect-to-ide
+[5] RunPod GPU pricing (check the console for current rates): https://www.runpod.io/gpu-cloud/pricing

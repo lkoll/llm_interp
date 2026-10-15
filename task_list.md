@@ -143,7 +143,6 @@ Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons
 
 - [ ] Switch config to Qwen3-4B, then Qwen3-8B (36 layers, 32 q / 8 KV heads, head_dim 128)
 - [ ] First command on any new machine is `doctor`
-- [ ] Setup script: install uv, sync env, set HF_HOME on persistent volume, HF login, run `doctor`
 - [ ] vLLM generation in its own environment (own torch pin), same trace format, accepts pre-tokenized IDs
 - [ ] Multi-million-token runs: layer subsets, streaming writes (never hold a run in RAM), resumable, `estimate` first (8B bf16: 8 KB/token/layer, ~295 KB/token for 36 layers)
 - [ ] Batched capture behind a test that batched == unbatched
@@ -151,6 +150,41 @@ Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons
 - [ ] Neuron index (Addendum A): per-neuron strongest activations, built separately for positive/negative poles, split by regime
 - [ ] Neuron vs. SAE/transcoder comparison (Addendum A): run each idea's readout on native neurons and on SAE/transcoder features side by side; training mid-layer SAEs for Qwen3-8B is conditional on neurons underperforming
 - [ ] Neuron dashboard conventions (Addendum A, from [1]): show both poles; show long preceding context (short snippets make long-context neurons look polysemantic); expect "summary" neurons firing on punctuation
+
+## Addendum B: Cloud setup (RunPod)
+
+Source: `project_outline.md` "Addendum B" (added 2026-10-15). RunPod Secure Cloud + one network volume. Supersedes the old generic "setup script" bullet above with a concrete breakdown. The manual steps are Luke's own one-time account/pod setup, not agent-buildable; everything else is a script or a `doctor` addition that ships with the repo.
+
+### Manual steps (Luke, once — not agent work)
+- [ ] Private GitHub repo, pushed from WSL
+- [ ] SSH keys: one on Windows (VS Code Remote-SSH), one in WSL (rsync); both pasted into RunPod account settings
+- [ ] Prepaid credit only, no auto-reload
+- [ ] Network volume created in a data center offering both 48 GB and 80 GB GPU tiers
+- [ ] Pod created: official PyTorch template, Secure Cloud, volume at `/workspace`, `HF_TOKEN` as a pod env var
+- [ ] VS Code Remote-SSH connected to `/workspace/llm_interp`; coding agent extension installed remotely
+
+### Scripts (`scripts/`)
+- [ ] `cloud_setup.sh` (idempotent): check GPU via `nvidia-smi`; install uv if missing; export + persist `HF_HOME`/`UV_CACHE_DIR`/store root to `~/.bashrc`; clone or pull the repo; `uv sync` for the main env (CUDA torch matching the driver) plus a separate vLLM env; pre-download weights for the chosen config (`HF_TOKEN` from env, never written into the repo); run `doctor` with the cloud config
+- [ ] `run.sh <run_id> <command>`: run inside a named `tmux` session, logs to `/workspace/runs/<run_id>/logs/`; heartbeat file while running; `DONE` marker + exit code at the end; optional `--stop-pod-when-done` (read pod ID from env, call `runpodctl pod stop <id>`; skip with a warning if the CLI/ID isn't available — confirm the actual env var RunPod sets before wiring this up)
+- [ ] `pull_run.sh <run_id> <dest>`: rsync over full SSH pod -> local archive path; verify checksums; optional `--delete-remote-after-verify`
+- [ ] `backup_meta.sh`: copy the small, irreplaceable files (traces/index/spans/annotations Parquet, manifests, configs) to a backup location — default a `meta/` folder committed to the repo
+
+### `doctor` additions (cloud-specific)
+- [ ] Report GPU, driver, CUDA version, bf16 support, free VRAM
+- [ ] Fail if `storage_root` or `HF_HOME` isn't on the network volume (data would vanish with the pod)
+- [ ] Benchmark write/read throughput on the store path
+- [ ] Compare the run's `estimate`d size against free space on the volume
+
+### Storage policy
+- [ ] Precious (back up every run): token IDs, metadata, spans, annotations, manifests, configs — small, via `backup_meta.sh`
+- [ ] Regenerable (treat as cache): activations — re-capturable from stored token IDs at the same model revision + dtype (manifest records hardware, since values may differ slightly across GPU types)
+- [ ] Zarr chunk size ~4,096 tokens (16 MB for 0.6B fp32 residual stream; 32 MB for 8B bf16) for sequential reads on archive drives — note this is a *larger* chunk than Phase 0's current chunking; reconcile when implementing
+- [ ] Finished cloud runs archived to local 2 TB drive via `pull_run.sh`, then deleted from the volume
+
+### Cost guardrails
+- [ ] Terminate pods when idle (volume persists)
+- [ ] Default to 48 GB cards; 80 GB only for 27B-class runs
+- [ ] Monthly check of volume usage; prune already-pulled runs
 
 # PHASE 2 — Evaluation (later)
 
