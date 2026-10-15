@@ -48,6 +48,23 @@ def estimate_bytes(config: RunConfig, num_tokens: int) -> EstimateResult:
             per_site[f"qk_pre_rope/{layer}_q"] = num_heads * head_dim * dtype_bytes
             per_site[f"qk_pre_rope/{layer}_k"] = num_kv_heads * head_dim * dtype_bytes
 
+    mlp_cfg = config.capture.mlp
+    if mlp_cfg is not None:
+        d_mlp = model_config.intermediate_size
+        gate_sign_bytes = -(-d_mlp // 8)  # ceil(d_mlp / 8), np.packbits packing
+        for layer in mlp_cfg.dense_layers:
+            per_site[f"mlp_act/{layer}"] = d_mlp * dtype_bytes
+            per_site[f"mlp_gate_sign/{layer}"] = gate_sign_bytes
+        for layer in mlp_cfg.topk_layers:
+            per_site[f"mlp_topk_index/{layer}"] = mlp_cfg.top_k * 2  # int16
+            per_site[f"mlp_topk_value/{layer}"] = mlp_cfg.top_k * dtype_bytes
+            per_site[f"mlp_topk_regime/{layer}"] = mlp_cfg.top_k * 1  # uint8
+        if mlp_cfg.capture_validation_extras:
+            for layer in sorted(set(mlp_cfg.dense_layers) | set(mlp_cfg.topk_layers)):
+                per_site[f"mlp_gate/{layer}"] = d_mlp * dtype_bytes
+                per_site[f"mlp_up/{layer}"] = d_mlp * dtype_bytes
+                per_site[f"mlp_out/{layer}"] = hidden_size * dtype_bytes
+
     bytes_per_token = sum(per_site.values())
     return EstimateResult(
         per_site_bytes=per_site,

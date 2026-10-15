@@ -118,8 +118,8 @@ Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons
 - [x] Bit-exact round-trip tests for packed gate-sign bits and topk encoding (extends check e)
 
 ## 0.16 Estimator (MLP sites)
-- [ ] `estimate.py`: include dense act + gate bits, or topk, per configured MLP layer, in the per-site byte accounting
-- [ ] Sanity-check against the addendum's reference figures (0.6B fp32 dense: ~12.3 KB/token-layer + 384 B gate bits; topk k=64: ~448 B/token-layer; 8B bf16 dense: ~24.6 KB/token-layer, ~885 GB/1M tokens over 36 layers; topk k=64: ~320 B/token-layer, ~11.5 GB/1M tokens over 36 layers)
+- [x] `estimate.py`: include dense act + gate bits, or topk, per configured MLP layer, in the per-site byte accounting
+- [x] Sanity-check against the addendum's reference figures (0.6B fp32 dense: ~12.3 KB/token-layer + 384 B gate bits; topk k=64: ~448 B/token-layer; 8B bf16 dense: ~24.6 KB/token-layer, ~885 GB/1M tokens over 36 layers; topk k=64: ~320 B/token-layer, ~11.5 GB/1M tokens over 36 layers)
 
 ## 0.17 Check g (MLP consistency) and `doctor`
 - [ ] `act_fn(gate) * up == mlp_act` (bitwise fp32; tolerance in bf16)
