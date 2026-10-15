@@ -115,3 +115,81 @@ Stop there.
 - Build in this order: config -> adapter -> hooks -> checks a/c/e -> generation -> capture/store -> checks b/d/f -> CLI -> notebook. Run tests after each step.
 - Ask before changing the storage format.
 - Keep it simple: no distributed frameworks, no database beyond Parquet + DuckDB.
+
+## Addendum A: MLP neuron capture (native units)
+
+### Why
+[1] argues that the model's own MLP neurons may be mostly interpretable without a trained dictionary (SAE/transcoder). Its audits of Qwen3-32B put about 90% of neuron "poles" at one main job. Caveats: the numbers shift with how thresholds are set, and [1] is an informal essay with its technical companion paper still pending.
+
+Two consequences for this project:
+- Native MLP neurons become a first-class unit, alongside the residual stream and (later) SAE/transcoder features. Phase 1 compares them directly.
+- [1] reports a "double-negative" regime in gated MLP neurons. Tooling must keep sign regimes separable.
+
+### Background: the Qwen3 MLP
+- The MLP computes `down_proj( act_fn(gate_proj(x)) * up_proj(x) )`.
+  - `act_fn` comes from `config.hidden_act`; for Qwen3 it is SiLU.
+  - `x` is the post-attention-norm residual.
+- A "neuron" is one coordinate of down_proj's input: `a = act_fn(g) * u`.
+  - Width is `intermediate_size`: 3,072 for 0.6B, 12,288 for 8B (3x the hidden size).
+- SiLU preserves sign (SiLU(z) = z * sigmoid(z)), so sign(a) = sign(g) * sign(u). That gives four regimes:
+
+| g | u | a | regime |
+|---|---|---|---|
+| + | + | + | `pos` |
+| + | - | - | `neg` |
+| - | + | - (small) | `leak_neg` |
+| - | - | + (small) | `double_neg` |
+
+- For negative g, SiLU(g) >= about -0.278, so the last two regimes are bounded by about 0.278 * |u|.
+- Given a and sign(g), the regime is fully determined. So store a plus one gate-sign bit per neuron rather than g and u.
+
+### Changes
+1. **Adapter sites (logical, per layer):**
+   - `mlp_in` (input to gate/up; optional)
+   - `mlp_gate` (gate_proj output, pre-activation)
+   - `mlp_up` (up_proj output)
+   - `mlp_act` (input to down_proj)
+   - `mlp_out` (MLP output)
+   - The adapter also exposes the activation function and its negative-side minimum: SiLU about -0.278; GELU-tanh (used by Gemma 3) about -0.17. Both preserve sign, so the regime logic carries over.
+   - Future adapters may have a fused gate/up projection; the interface must allow splitting it by config.
+2. **Hooks:**
+   - `mlp_act`: forward-pre-hook on `down_proj`.
+   - `mlp_gate` / `mlp_up`: forward hooks on `gate_proj` / `up_proj`.
+   - `mlp_out`: forward hook on `mlp`.
+   - Same rules as the other hooks: context-managed, detach/clone/move to CPU promptly.
+3. **Storage modes (per run, in config):**
+   - `dense`: `mlp_act[l]` as [N_tokens, d_mlp] in the run dtype, plus `mlp_gate_sign[l]` as packed bits [N_tokens, d_mlp/8] uint8 (np.packbits; 1 = gate negative).
+   - `topk`: per (token, layer), keep k entries by |a| (default k = 64). Store an int16 index, the value in the run dtype, and a uint8 regime code.
+   - `validation`: additionally store dense `mlp_gate`, `mlp_up`, and `mlp_out`. Used only for check g.
+   - Layers are configurable. Defaults: local runs use dense on 4 layers (about 25/50/75% depth plus the last layer); cloud runs use topk on all layers plus dense on 4.
+4. **Estimator** includes the MLP sites. Reference figures for sanity-checking it:
+   - Qwen3-0.6B, fp32:
+     - dense act: 12.3 KB per token-layer, plus 384 B of gate bits
+     - topk (k = 64): about 448 B per token-layer
+   - Qwen3-8B, bf16:
+     - dense act: 24.6 KB per token-layer (about 3x the residual). All 36 layers come to about 885 KB/token, or about 885 GB per 1M tokens.
+     - topk (k = 64): 320 B per token-layer, about 11.5 GB per 1M tokens across 36 layers.
+5. **Validation check g (MLP consistency),** run on a validation run:
+   - act_fn(captured gate) * captured up == captured `mlp_act` (bitwise in fp32; within tolerance in bf16).
+   - down_proj(captured `mlp_act`) == captured `mlp_out`.
+   - Regime derived from (sign(a), gate bit) == regime derived from full (g, u).
+   - topk round trip: kept entries are reproduced exactly; report the fraction of L2 norm lost to dropped entries.
+6. **Loader:**
+   - `get_neuron(trace_id, layer, idx, span)` returns values plus regime codes.
+   - `top_contexts(layer, idx, pole, n)` is an interface stub only; Phase 1 builds the index behind it. It must return generous preceding context (configurable, default >= 1,024 tokens), not short snippets.
+
+### Definition of done (additions)
+- Toy traces are captured with dense `mlp_act` on 4 layers, plus gate bits.
+- The estimator is updated.
+- Check g passes.
+
+### Design for later
+- **Phase 1 neuron index:** an index of each neuron's strongest activations, built separately for the positive and negative poles (per [1], both carry meaning) and split by regime.
+- **Phase 1 comparison:** run each idea's readout on native neurons and on SAE/transcoder features side by side. Training mid-layer SAEs for Qwen3-8B becomes conditional on neurons underperforming.
+- **Conventions for future neuron dashboards, from [1]:**
+  - Show both poles.
+  - Show long preceding context; short snippets made long-context neurons look polysemantic.
+  - Expect "summary" neurons that fire on punctuation.
+
+### References
+[1] Nick Cammarata, "Neural Networks Are Already Clean," Goodfire. https://already-clean.goodfire.com/ (accessed 2026-10-15). Informal essay and working hypothesis. A technical companion paper on language-model neurons is forthcoming; check for it before Phase 1.

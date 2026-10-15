@@ -87,6 +87,58 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 
 ---
 
+# PHASE 0 ADDENDUM A — MLP neuron capture (native units)
+
+Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons become a first-class unit alongside the residual stream; Phase 1 compares them against SAE/transcoder features. Touches config, adapters, hooks, store, estimator, validate, and loader — not appended at the end, woven through the existing pieces. Same build order pattern as the rest of Phase 0 (config -> adapter -> hooks -> storage -> estimator -> check g -> loader); run tests after each step.
+
+## 0.12 Config (MLP capture)
+- [ ] `RunConfig` capture section: MLP mode (`dense` / `topk` / `validation`), MLP layers (configurable), topk `k` (default 64)
+- [ ] `configs/qwen3_0p6b_local.yaml`: `dense` mode, 4 layers — candidate indices 7, 14, 21, 27 (~25/50/75% depth of 28 + last); confirm/adjust against the "about" wording when implementing
+- [ ] `configs/qwen3_8b_cloud.yaml`: `topk` on all 36 layers + `dense` on 4 (candidate 9, 18, 27, 35) — written, not run
+- [ ] Validation tests for the new fields
+
+## 0.13 Adapters (MLP sites)
+- [ ] `ArchAdapter`: new logical sites `mlp_in` (optional), `mlp_gate`, `mlp_up`, `mlp_act` (down_proj input), `mlp_out`
+- [ ] Adapter exposes the activation function and its negative-side minimum (SiLU ≈ -0.278; note GELU-tanh ≈ -0.17 for a future Gemma 3 adapter — both sign-preserving)
+- [ ] `Qwen3Adapter`: confirm `gate_proj`/`up_proj`/`down_proj`/`mlp` module names in installed `modeling_qwen3.py`
+- [ ] Interface must allow a future fused gate/up projection to be split by config (Gemma 3 / Qwen3.6 forward-compat note; no implementation now)
+- [ ] Tests on the tiny random-init fixture
+
+## 0.14 Hooks (MLP sites)
+- [ ] `mlp_act`: forward-pre-hook on `down_proj`
+- [ ] `mlp_gate` / `mlp_up`: forward hooks on `gate_proj` / `up_proj`
+- [ ] `mlp_out`: forward hook on `mlp`
+- [ ] Same discipline as existing hooks: context-managed, always removed, detach/clone/move to CPU promptly
+- [ ] Tests
+
+## 0.15 Storage (dense / topk / validation modes)
+- [ ] `dense`: `mlp_act[l]` as `[N_tokens, d_mlp]` in run dtype; `mlp_gate_sign[l]` as packed bits `[N_tokens, d_mlp/8]` uint8 (`np.packbits`; 1 = gate negative) — **flags `numpy` as a new direct dependency** (previously transitive only; flag per CLAUDE.md's dependency policy when implementing)
+- [ ] `topk` (k=64 default): per (token, layer) — int16 index, value in run dtype, uint8 regime code, kept by `|a|`
+- [ ] `validation`: additionally dense `mlp_gate`, `mlp_up`, `mlp_out` (check g only)
+- [ ] Bit-exact round-trip tests for packed gate-sign bits and topk encoding (extends check e)
+
+## 0.16 Estimator (MLP sites)
+- [ ] `estimate.py`: include dense act + gate bits, or topk, per configured MLP layer, in the per-site byte accounting
+- [ ] Sanity-check against the addendum's reference figures (0.6B fp32 dense: ~12.3 KB/token-layer + 384 B gate bits; topk k=64: ~448 B/token-layer; 8B bf16 dense: ~24.6 KB/token-layer, ~885 GB/1M tokens over 36 layers; topk k=64: ~320 B/token-layer, ~11.5 GB/1M tokens over 36 layers)
+
+## 0.17 Check g (MLP consistency) and `doctor`
+- [ ] `act_fn(gate) * up == mlp_act` (bitwise fp32; tolerance in bf16)
+- [ ] `down_proj(mlp_act) == mlp_out`
+- [ ] Regime from `(sign(a), gate bit)` == regime from full `(g, u)`
+- [ ] topk round trip: kept entries reproduced exactly; report fraction of L2 norm lost to dropped entries
+- [ ] Wire check g into `doctor`'s pass/fail table (needs a `validation`-mode run to exercise `mlp_gate`/`mlp_up`/`mlp_out`)
+
+## 0.18 Loader (neuron access)
+- [ ] `get_neuron(trace_id, layer, idx, span)` -> values + regime codes
+- [ ] `top_contexts(layer, idx, pole, n)` — interface stub only (Phase 1 builds the index); must default to >= 1,024 tokens of preceding context (configurable)
+
+## 0.19 Definition of done (Addendum A)
+- [ ] Toy traces captured with dense `mlp_act` on 4 layers + gate bits
+- [ ] Estimator updated and sanity-checked against the addendum's reference figures
+- [ ] Check g passes
+
+---
+
 # PHASE 1 — Cloud (rented Linux GPU, bf16) — DO NOT BUILD in Phase 0, but don't block it
 
 - [ ] Switch config to Qwen3-4B, then Qwen3-8B (36 layers, 32 q / 8 KV heads, head_dim 128)
@@ -96,6 +148,9 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [ ] Multi-million-token runs: layer subsets, streaming writes (never hold a run in RAM), resumable, `estimate` first (8B bf16: 8 KB/token/layer, ~295 KB/token for 36 layers)
 - [ ] Batched capture behind a test that batched == unbatched
 - [ ] Adapters: Gemma 3 12B-IT, Qwen3.6-27B
+- [ ] Neuron index (Addendum A): per-neuron strongest activations, built separately for positive/negative poles, split by regime
+- [ ] Neuron vs. SAE/transcoder comparison (Addendum A): run each idea's readout on native neurons and on SAE/transcoder features side by side; training mid-layer SAEs for Qwen3-8B is conditional on neurons underperforming
+- [ ] Neuron dashboard conventions (Addendum A, from [1]): show both poles; show long preceding context (short snippets make long-context neurons look polysemantic); expect "summary" neurons firing on punctuation
 
 # PHASE 2 — Evaluation (later)
 
