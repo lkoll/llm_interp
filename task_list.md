@@ -129,8 +129,8 @@ Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons
 - [x] Wire check g into `doctor`'s pass/fail table (needs a `validation`-mode run to exercise `mlp_gate`/`mlp_up`/`mlp_out`)
 
 ## 0.18 Loader (neuron access)
-- [ ] `get_neuron(trace_id, layer, idx, span)` -> values + regime codes
-- [ ] `top_contexts(layer, idx, pole, n)` — interface stub only (Phase 1 builds the index); must default to >= 1,024 tokens of preceding context (configurable)
+- [x] `get_neuron(trace_id, layer, idx, span)` -> values + regime codes
+- [x] `top_contexts(layer, idx, pole, n)` — interface stub only (Phase 1 builds the index); must default to >= 1,024 tokens of preceding context (configurable)
 
 ## 0.19 Definition of done (Addendum A)
 - [ ] Toy traces captured with dense `mlp_act` on 4 layers + gate bits
