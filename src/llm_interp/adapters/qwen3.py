@@ -71,6 +71,10 @@ class Qwen3Adapter(ArchAdapter):
         self._check_layer_idx(layer_idx)
         return self.config.layer_types[layer_idx]
 
+    def attention_scaling(self, layer_idx: int) -> float:
+        self._check_layer_idx(layer_idx)
+        return self.model.model.layers[layer_idx].self_attn.scaling
+
     def apply_qk_norm(
         self, q: torch.Tensor, k: torch.Tensor, layer_idx: int
     ) -> tuple[torch.Tensor, torch.Tensor]:

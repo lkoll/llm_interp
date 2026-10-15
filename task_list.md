@@ -34,10 +34,10 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [x] Add-vector at a site + test (nothing more)
 
 ## 0.4 Recompute (`recompute.py`) and checks a / c / e
-- [ ] input norm -> q/k/v -> per-head reshape -> QK-norm -> optional RoPE (model's own rotary module, given positions)
-- [ ] GQA: query head h reads KV head h // (n_heads / n_kv_heads); model's scaling + causal mask
-- [ ] Check a: logits from final residual (final norm -> lm_head)
-- [ ] Check c: recomputed q/k == hooked q/k norm outputs
+- [x] input norm -> q/k/v -> per-head reshape -> QK-norm -> optional RoPE (model's own rotary module, given positions)
+- [x] GQA: query head h reads KV head h // (n_heads / n_kv_heads); model's scaling + causal mask
+- [x] Check a: logits from final residual (final norm -> lm_head)
+- [x] Check c: recomputed q/k == hooked q/k norm outputs
 - [ ] Check e: bit-exact storage round trip, fp32 and bf16 (uint16) paths (lands with store)
 
 ## 0.5 Generation (`generate/`)

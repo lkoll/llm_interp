@@ -31,6 +31,10 @@ class HookManager:
             self._capture_targets[layer_idx] = self.adapter.layer(layer_idx)
         return self
 
+    def capture_final_residual(self) -> "HookManager":
+        self._capture_targets["final_residual"] = self.adapter.final_norm()
+        return self
+
     def add_vector(self, layer_idx: int, vector: torch.Tensor) -> "HookManager":
         self._add_vector_targets[layer_idx] = (self.adapter.layer(layer_idx), vector)
         return self

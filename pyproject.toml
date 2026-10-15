@@ -26,6 +26,7 @@ build-backend = "hatchling.build"
 packages = ["src/llm_interp"]
 
 [tool.pytest.ini_options]
+addopts = "-m 'not gpu'"
 markers = [
     "gpu: integration tests that require a CUDA GPU",
 ]

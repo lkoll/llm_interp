@@ -88,6 +88,12 @@ class ArchAdapter(ABC):
     def attention_type(self, layer_idx: int) -> str:
         """e.g. 'full_attention' or 'sliding_attention', per layer."""
 
+    @abstractmethod
+    def attention_scaling(self, layer_idx: int) -> float:
+        """The model's own attention score scaling factor for this layer, read from
+        the real submodule rather than recomputed as head_dim**-0.5 — some
+        architectures (e.g. Gemma 3) use a custom scaling."""
+
     # --- recompute primitives (architecture-specific) ---
 
     def reshape_to_heads(self, x: torch.Tensor, num_heads: int) -> torch.Tensor:
