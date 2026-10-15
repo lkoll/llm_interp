@@ -70,8 +70,8 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [x] `doctor` CLI: pass/fail table, non-zero exit on failure
 
 ## 0.9 Loader and CLI
-- [ ] `loader`: (trace_id, site, layer, token span) -> tensor + decoded tokens
-- [ ] CLI: `doctor`, `estimate`, `generate`, `capture`, `inspect`
+- [x] `loader`: (trace_id, site, layer, token span) -> tensor + decoded tokens
+- [x] CLI: `doctor`, `estimate`, `generate`, `capture`, `inspect`
 
 ## 0.10 Tests, notebook, docs
 - [ ] CPU unit tests on tiny random Qwen3

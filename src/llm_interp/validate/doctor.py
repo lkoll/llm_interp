@@ -8,10 +8,9 @@ import sys
 from pathlib import Path
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from ..adapters import Qwen3Adapter
 from ..config import load_config
+from ..model_loading import build_adapter, load_model_and_tokenizer
 from .base import CheckResult, ValidationContext
 from .checks import (
     check_a_logits_from_final_residual,
@@ -24,8 +23,6 @@ from .checks import (
 
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[3] / "configs" / "qwen3_0p6b_local.yaml"
 VALIDATION_TEXT = "The quick brown fox jumps over the lazy dog, and the five boxing wizards jump quickly."
-
-_TORCH_DTYPES = {"float32": torch.float32, "bfloat16": torch.bfloat16}
 
 
 def print_report(results: list[CheckResult]) -> None:
@@ -51,17 +48,8 @@ def run_doctor(config_path: str | Path) -> list[CheckResult]:
     torch.manual_seed(0)
     torch.use_deterministic_algorithms(True)
 
-    tokenizer = AutoTokenizer.from_pretrained(config.model.id, revision=config.model.revision)
-    model = AutoModelForCausalLM.from_pretrained(
-        config.model.id,
-        revision=config.model.revision,
-        dtype=_TORCH_DTYPES[config.model.dtype],
-        attn_implementation=config.model.attn_implementation,
-    )
-    model = model.to(config.model.device)
-    model.eval()
-
-    adapter = Qwen3Adapter(model)
+    model, tokenizer = load_model_and_tokenizer(config)
+    adapter = build_adapter(model)
     ctx = ValidationContext(config=config, model=model, tokenizer=tokenizer, adapter=adapter)
     input_ids = tokenizer(VALIDATION_TEXT, return_tensors="pt").input_ids
 

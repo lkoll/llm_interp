@@ -8,7 +8,7 @@ from .hooks import HookManager
 from .prompts.pairs import PairTrace
 from .recompute import recompute_qk_pre_rope
 from .spans import find_answer_value_span, find_hint_span, find_response_span, find_think_spans
-from .store import TraceTables, ZarrStore
+from .store import TraceTables, ZarrStore, build_manifest, write_manifest
 
 TRACE_ID_SEP = "__"
 
@@ -56,6 +56,7 @@ class CaptureRunner:
             if trace_id in done:
                 continue
             self._capture_one(trace_id, trace)
+        write_manifest(self.store_root / "manifest.json", build_manifest(self.config, self.tokenizer))
 
     def _capture_one(self, trace_id: str, trace: PairTrace) -> None:
         full_ids_cpu = trace.generation_result.full_ids  # 1D LongTensor, CPU
@@ -82,8 +83,7 @@ class CaptureRunner:
                 log_probs[:-1].gather(1, device_ids[0, 1:].unsqueeze(1)).squeeze(1)
             )
 
-        self._write_sites(mgr, n_tokens, top_values, top_indices, realized_logprob)
-        start, end = self.zarr_store.append("positions", torch.arange(n_tokens))
+        start, end = self._write_sites(mgr, full_ids_cpu, n_tokens, top_values, top_indices, realized_logprob)
 
         span_rows = self._compute_span_rows(trace_id, trace, full_ids_list)
 
@@ -111,14 +111,18 @@ class CaptureRunner:
     def _write_sites(
         self,
         mgr: HookManager,
+        full_ids_cpu: torch.Tensor,
         n_tokens: int,
         top_values: torch.Tensor,
         top_indices: torch.Tensor,
         realized_logprob: torch.Tensor,
-    ) -> None:
-        # "positions" (appended by the caller) is the canonical (start, end) for
-        # this trace; every other required site must agree with it exactly.
-        canonical: tuple[int, int] | None = None
+    ) -> tuple[int, int]:
+        # "positions" is the canonical (start, end) for this trace; every other
+        # required site — including "token_ids", the source of truth the loader
+        # decodes back from — must agree with it exactly.
+        canonical: tuple[int, int] | None = self.zarr_store.append("positions", torch.arange(n_tokens))
+        offset = self.zarr_store.append("token_ids", full_ids_cpu)
+        assert offset == canonical, f"token_ids offset {offset} != {canonical}"
         for layer in self.config.capture.layers:
             offset = self.zarr_store.append(f"resid_pre/{layer}", mgr.captures[layer][0])
             canonical = canonical or offset
@@ -141,6 +145,8 @@ class CaptureRunner:
                 q, k = recompute_qk_pre_rope(self.adapter, mgr.captures[layer], layer)
                 self.zarr_store.append(f"qk_pre_rope/{layer}_q", q[0].transpose(0, 1).contiguous().to("cpu"))
                 self.zarr_store.append(f"qk_pre_rope/{layer}_k", k[0].transpose(0, 1).contiguous().to("cpu"))
+
+        return canonical
 
     def _compute_span_rows(self, trace_id: str, trace: PairTrace, full_ids_list: list[int]) -> list[dict]:
         span_rows: list[dict] = []

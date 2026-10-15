@@ -7,10 +7,9 @@ from pathlib import Path
 
 import pytest
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from llm_interp.adapters import Qwen3Adapter
 from llm_interp.config import RunConfig, load_config
+from llm_interp.model_loading import build_adapter, load_model_and_tokenizer
 from llm_interp.validate import ValidationContext
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -29,21 +28,11 @@ def qwen3_run_config() -> RunConfig:
 
 @pytest.fixture(scope="session")
 def qwen3_model_and_tokenizer(qwen3_run_config: RunConfig):
-    cfg = qwen3_run_config
-    tokenizer = AutoTokenizer.from_pretrained(cfg.model.id, revision=cfg.model.revision)
-    model = AutoModelForCausalLM.from_pretrained(
-        cfg.model.id,
-        revision=cfg.model.revision,
-        dtype=torch.float32,
-        attn_implementation=cfg.model.attn_implementation,
-    )
-    model = model.to(cfg.model.device)
-    model.eval()
-    return model, tokenizer
+    return load_model_and_tokenizer(qwen3_run_config)
 
 
 @pytest.fixture(scope="session")
 def validation_context(qwen3_run_config: RunConfig, qwen3_model_and_tokenizer) -> ValidationContext:
     model, tokenizer = qwen3_model_and_tokenizer
-    adapter = Qwen3Adapter(model)
+    adapter = build_adapter(model)
     return ValidationContext(config=qwen3_run_config, model=model, tokenizer=tokenizer, adapter=adapter)

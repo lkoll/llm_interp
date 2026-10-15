@@ -40,6 +40,16 @@ def test_capture_runner_writes_sites_tables_and_round_trips_bit_exact(
     assert runner.zarr_store.group["final_residual"].shape == (total_tokens, adapter.hidden_size)
     assert runner.zarr_store.group["top_logprob_values"].shape == (total_tokens, config.capture.top_k_logprobs)
 
+    # the loader's source of truth: token_ids must round-trip to the real generated ids
+    assert runner.zarr_store.group["token_ids"].shape[0] == total_tokens
+    for row in runner.tables._rows["index"]:
+        trace_id = row["trace_id"]
+        trace = next(t for t in traces if trace_id_for(t.record.pair_id, t.record.condition) == trace_id)
+        stored_ids = runner.zarr_store.read("token_ids", row["start"], row["end"])
+        assert torch.equal(stored_ids, trace.generation_result.full_ids)
+
+    assert (tmp_path / "manifest.json").exists()
+
     # check (e), against real captured data: bit-exact round trip through the store.
     for row in runner.tables._rows["index"]:
         start, end = row["start"], row["end"]
