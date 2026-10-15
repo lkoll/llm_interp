@@ -22,3 +22,12 @@ Src-layout: `src/llm_interp/` as the installable package (hatchling build backen
 ## 2026-10-15 — Python interpreter
 
 `requires-python = ">=3.12,<3.13"`, pinned via `.python-version` to a uv-managed CPython 3.12.15 (not the system Python, which is 3.14). Narrowed from the initially-planned `>=3.11` after `zarr==3.4.1` turned out to require Python >=3.12 — still within CLAUDE.md's "let uv manage a 3.11/3.12 interpreter."
+
+## 2026-10-15 — RunConfig shape
+
+`RunConfig` (`src/llm_interp/config/schema.py`) groups fields into `model` / `capture` / `generation` plus top-level `run_name` and `storage_root`, matching the brief's listed fields (model id+revision, dtype, device, attention impl, layers/sites, storage root, generation params) one-for-one. All four pydantic models are frozen.
+
+- `capture` doesn't carry a generic `sites: list[str]`. The outline's actual capture semantics (step 5) are: resid_pre for the configured `layers`, the final residual, and top-k logprobs, always; post-QK-norm pre-RoPE q/k only for validation runs. Modeled that directly as `layers: list[int]`, `capture_final_residual: bool`, `top_k_logprobs: int`, `capture_qk_pre_rope: bool` rather than inventing a generic site-name list — avoids a layer of indirection nothing downstream needs yet.
+- `layers` validation (non-negative, no duplicates, sorted) happens at the schema level; validation that the layer indices are in-range for the actual model (0-27 for the 0.6B, 0-35 for the 8B) is deferred to the adapter once the model config is loaded, per the outline's "read all dims from config" principle — `RunConfig` itself has no model-specific knowledge.
+- `generation.max_new_tokens` set to 768 in both configs — not specified in the brief beyond "cap it, 0.6B rambles." A judgment-call default, not validated against actual generation behavior yet; revisit once `estimate`/`generate` exist and real trace lengths are visible.
+- Pinned `Qwen/Qwen3-8B` to commit `b968826d9c46dd6066d109eabc6255188de91218` for the (unrun) cloud config, with the same due diligence as the 0.6B pin — fetched `config.json` at that commit and confirmed 36 layers, 32 attention heads, 8 KV heads, head_dim 128, matching the outline.

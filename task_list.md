@@ -17,10 +17,10 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [x] Set HF_HOME (also caches the ARC-Easy download)
 
 ## 0.1 Config (`config/`)
-- [ ] Pydantic `RunConfig`: model id + revision, dtype, device, attention impl, layers/sites, storage root, generation params
-- [ ] `configs/qwen3_0p6b_local.yaml` (fp32) — the only one that gets run
-- [ ] `configs/qwen3_8b_cloud.yaml` (bf16) — written now, not run
-- [ ] Validation tests
+- [x] Pydantic `RunConfig`: model id + revision, dtype, device, attention impl, layers/sites, storage root, generation params
+- [x] `configs/qwen3_0p6b_local.yaml` (fp32) — the only one that gets run
+- [x] `configs/qwen3_8b_cloud.yaml` (bf16) — written now, not run
+- [x] Validation tests
 
 ## 0.2 Adapters (`adapters/`)
 - [ ] `ArchAdapter` base: logical sites (embeddings, resid_pre[l], attn input norm, q/k/v proj, q/k norms, rotary, final norm, lm_head), per-layer attention types, absent sites, recompute functions

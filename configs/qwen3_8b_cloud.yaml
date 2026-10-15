@@ -1,0 +1,26 @@
+# Phase 1 — rented Linux GPU, bf16. Written now for the config-driven design; NOT run in Phase 0.
+run_name: qwen3_8b_cloud
+
+model:
+  id: Qwen/Qwen3-8B
+  revision: b968826d9c46dd6066d109eabc6255188de91218
+  dtype: bfloat16
+  device: cuda
+  attn_implementation: sdpa
+
+capture:
+  layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35] # all 36 layers; Phase 1 will likely subset these for million-token runs
+  capture_final_residual: true
+  top_k_logprobs: 20
+  capture_qk_pre_rope: false
+
+generation:
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+  min_p: 0.0
+  max_new_tokens: 768
+  seed: 0
+  enable_thinking: true
+
+storage_root: runs/qwen3_8b_cloud
