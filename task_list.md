@@ -74,10 +74,10 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [x] CLI: `doctor`, `estimate`, `generate`, `capture`, `inspect`
 
 ## 0.10 Tests, notebook, docs
-- [ ] CPU unit tests on tiny random Qwen3
-- [ ] `gpu`-marked integration tests on Qwen3-0.6B
-- [ ] Notebook: load trace, tokens with think spans, per-layer residual norms, recompute one layer's keys
-- [ ] README (setup + commands), DECISIONS.md
+- [x] CPU unit tests on tiny random Qwen3
+- [x] `gpu`-marked integration tests on Qwen3-0.6B
+- [x] Notebook: load trace, tokens with think spans, per-layer residual norms, recompute one layer's keys
+- [x] README (setup + commands), DECISIONS.md
 
 ## 0.11 Definition of done (then STOP)
 - [ ] `doctor` passes for local config

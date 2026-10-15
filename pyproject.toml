@@ -17,6 +17,10 @@ dependencies = [
 dev = [
     "pytest==9.1.1",
 ]
+notebook = [
+    "matplotlib==3.11.2",
+    "ipykernel==7.4.0",
+]
 
 [project.scripts]
 llm-interp = "llm_interp.cli:main"
