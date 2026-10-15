@@ -38,7 +38,7 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [x] GQA: query head h reads KV head h // (n_heads / n_kv_heads); model's scaling + causal mask
 - [x] Check a: logits from final residual (final norm -> lm_head)
 - [x] Check c: recomputed q/k == hooked q/k norm outputs
-- [ ] Check e: bit-exact storage round trip, fp32 and bf16 (uint16) paths (lands with store)
+- [x] Check e: bit-exact storage round trip, fp32 and bf16 (uint16) paths (lands with store)
 
 ## 0.5 Generation (`generate/`)
 - [x] `Generator` interface; `HFGenerator`
@@ -53,14 +53,14 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [x] Fields: pair_id, condition, hinted_option, gold, parsed_answer
 
 ## 0.7 Capture and store (`capture.py`, `store/`)
-- [ ] Teacher-forced, `use_cache=False`, batch size 1
-- [ ] Capture resid_pre (configured layers), final residual, positions, top-20 logprobs + realized-token logprob; optional post-QK-norm pre-RoPE q/k (validation only)
-- [ ] Zarr v3 group per run, `[N_tokens, d]` per site, chunked on tokens
-- [ ] Parquet: `index`, `traces`, `spans`, `annotations` (see CLAUDE.md for span semantics)
-- [ ] bf16 as uint16 + dtype attr
-- [ ] Resumable (index row after flush; truncate to last indexed offset; skip finished); re-run is a no-op
-- [ ] Manifest: git commit, package versions, CUDA, GPU+driver, model revision, tokenizer + chat-template hashes, config snapshot
-- [ ] Flag position 0 (attention sink); exclude from stats by default
+- [x] Teacher-forced, `use_cache=False`, batch size 1
+- [x] Capture resid_pre (configured layers), final residual, positions, top-20 logprobs + realized-token logprob; optional post-QK-norm pre-RoPE q/k (validation only)
+- [x] Zarr v3 group per run, `[N_tokens, d]` per site, chunked on tokens
+- [x] Parquet: `index`, `traces`, `spans`, `annotations` (see CLAUDE.md for span semantics)
+- [x] bf16 as uint16 + dtype attr
+- [x] Resumable (index row after flush; truncate to last indexed offset; skip finished); re-run is a no-op
+- [x] Manifest: git commit, package versions, CUDA, GPU+driver, model revision, tokenizer + chat-template hashes, config snapshot
+- [x] Flag position 0 (attention sink); exclude from stats by default (identifiable directly from stored `positions`; "exclude by default" behavior deferred to the loader, 0.9 — noted in DECISIONS.md)
 
 ## 0.8 Remaining checks (`validate/`) and `doctor`
 - [ ] Check b: KV-cached vs teacher-forced (max abs/rel err, cosine, argmax agreement)
