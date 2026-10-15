@@ -28,10 +28,10 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [x] Tiny random-init Qwen3 config fixture (CPU, no download)
 
 ## 0.3 Hooks (`hooks.py`)
-- [ ] Context-managed, always removes hooks (even on exception)
-- [ ] resid_pre via `register_forward_pre_hook(with_kwargs=True)`; hidden_states positional or keyword
-- [ ] Detach, clone, move to CPU promptly; no `output_hidden_states`
-- [ ] Add-vector at a site + test (nothing more)
+- [x] Context-managed, always removes hooks (even on exception)
+- [x] resid_pre via `register_forward_pre_hook(with_kwargs=True)`; hidden_states positional or keyword
+- [x] Detach, clone, move to CPU promptly; no `output_hidden_states`
+- [x] Add-vector at a site + test (nothing more)
 
 ## 0.4 Recompute (`recompute.py`) and checks a / c / e
 - [ ] input norm -> q/k/v -> per-head reshape -> QK-norm -> optional RoPE (model's own rotary module, given positions)
