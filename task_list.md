@@ -63,11 +63,11 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [x] Flag position 0 (attention sink); exclude from stats by default (identifiable directly from stored `positions`; "exclude by default" behavior deferred to the loader, 0.9 — noted in DECISIONS.md)
 
 ## 0.8 Remaining checks (`validate/`) and `doctor`
-- [ ] Check b: KV-cached vs teacher-forced (max abs/rel err, cosine, argmax agreement)
-- [ ] Check d: recomputed attention probs vs eager (short seqs, sampled layers/heads)
-- [ ] Check f: zero vector no-op, nonzero vector changes logits
-- [ ] Per-dtype tolerances; fixed seeds; `CUBLAS_WORKSPACE_CONFIG=:4096:8`
-- [ ] `doctor` CLI: pass/fail table, non-zero exit on failure
+- [x] Check b: KV-cached vs teacher-forced (max abs/rel err, cosine, argmax agreement)
+- [x] Check d: recomputed attention probs vs eager (short seqs, sampled layers/heads)
+- [x] Check f: zero vector no-op, nonzero vector changes logits
+- [x] Per-dtype tolerances; fixed seeds; `CUBLAS_WORKSPACE_CONFIG=:4096:8`
+- [x] `doctor` CLI: pass/fail table, non-zero exit on failure
 
 ## 0.9 Loader and CLI
 - [ ] `loader`: (trace_id, site, layer, token span) -> tensor + decoded tokens
