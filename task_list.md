@@ -10,11 +10,11 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 ## 0.0 Environment and scaffolding
 - [x] WSL2 Ubuntu with GPU passthrough confirmed (RTX 2060, 6144 MiB, driver 610.88)
 - [x] Repo moved to `~/llm_interp` (WSL filesystem); `git init`; `uv` installed
-- [ ] Set git `user.name` / `user.email` in WSL
-- [ ] `pyproject.toml` (Python 3.11+, uv-managed), pin torch (CUDA build), transformers >=4.51, zarr v3, pyarrow, duckdb, pydantic, datasets, pytest. Ask before adding anything else (argparse for CLI; PyYAML/numpy only if transitive or approved)
-- [ ] Look up and pin `Qwen/Qwen3-0.6B` commit hash
-- [ ] Package layout, `.gitignore`, `DECISIONS.md` skeleton, VS Code WSL setup notes in README
-- [ ] Set HF_HOME (also caches the ARC-Easy download)
+- [x] Set git `user.name` / `user.email` in WSL
+- [x] `pyproject.toml` (Python 3.11+, uv-managed), pin torch (CUDA build), transformers >=4.51, zarr v3, pyarrow, duckdb, pydantic, datasets, pytest. Ask before adding anything else (argparse for CLI; PyYAML/numpy only if transitive or approved)
+- [x] Look up and pin `Qwen/Qwen3-0.6B` commit hash
+- [x] Package layout, `.gitignore`, `DECISIONS.md` skeleton, VS Code WSL setup notes in README
+- [x] Set HF_HOME (also caches the ARC-Easy download)
 
 ## 0.1 Config (`config/`)
 - [ ] Pydantic `RunConfig`: model id + revision, dtype, device, attention impl, layers/sites, storage root, generation params
