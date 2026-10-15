@@ -23,9 +23,9 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [x] Validation tests
 
 ## 0.2 Adapters (`adapters/`)
-- [ ] `ArchAdapter` base: logical sites (embeddings, resid_pre[l], attn input norm, q/k/v proj, q/k norms, rotary, final norm, lm_head), per-layer attention types, absent sites, recompute functions
-- [ ] `Qwen3Adapter` — confirm module names in installed `modeling_qwen3.py`; all dims from config (head_dim 128 != hidden/heads)
-- [ ] Tiny random-init Qwen3 config fixture (CPU, no download)
+- [x] `ArchAdapter` base: logical sites (embeddings, resid_pre[l], attn input norm, q/k/v proj, q/k norms, rotary, final norm, lm_head), per-layer attention types, absent sites, recompute functions
+- [x] `Qwen3Adapter` — confirm module names in installed `modeling_qwen3.py`; all dims from config (head_dim 128 != hidden/heads)
+- [x] Tiny random-init Qwen3 config fixture (CPU, no download)
 
 ## 0.3 Hooks (`hooks.py`)
 - [ ] Context-managed, always removes hooks (even on exception)
