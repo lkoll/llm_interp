@@ -19,6 +19,7 @@ from .checks import (
     check_d_attention_probs_vs_eager,
     check_e_storage_round_trip,
     check_f_add_vector,
+    check_g_mlp_consistency,
 )
 
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[3] / "configs" / "qwen3_0p6b_local.yaml"
@@ -60,11 +61,12 @@ def run_doctor(config_path: str | Path) -> list[CheckResult]:
         check_d_attention_probs_vs_eager(ctx, input_ids),
         check_e_storage_round_trip(),
         check_f_add_vector(ctx, input_ids),
+        check_g_mlp_consistency(ctx, input_ids),
     ]
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run all validation checks (a-f) and print a pass/fail table.")
+    parser = argparse.ArgumentParser(description="Run all validation checks (a-g) and print a pass/fail table.")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to a RunConfig YAML file.")
     args = parser.parse_args(argv)
 

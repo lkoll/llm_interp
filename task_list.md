@@ -122,11 +122,11 @@ Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons
 - [x] Sanity-check against the addendum's reference figures (0.6B fp32 dense: ~12.3 KB/token-layer + 384 B gate bits; topk k=64: ~448 B/token-layer; 8B bf16 dense: ~24.6 KB/token-layer, ~885 GB/1M tokens over 36 layers; topk k=64: ~320 B/token-layer, ~11.5 GB/1M tokens over 36 layers)
 
 ## 0.17 Check g (MLP consistency) and `doctor`
-- [ ] `act_fn(gate) * up == mlp_act` (bitwise fp32; tolerance in bf16)
-- [ ] `down_proj(mlp_act) == mlp_out`
-- [ ] Regime from `(sign(a), gate bit)` == regime from full `(g, u)`
-- [ ] topk round trip: kept entries reproduced exactly; report fraction of L2 norm lost to dropped entries
-- [ ] Wire check g into `doctor`'s pass/fail table (needs a `validation`-mode run to exercise `mlp_gate`/`mlp_up`/`mlp_out`)
+- [x] `act_fn(gate) * up == mlp_act` (bitwise fp32; tolerance in bf16)
+- [x] `down_proj(mlp_act) == mlp_out`
+- [x] Regime from `(sign(a), gate bit)` == regime from full `(g, u)`
+- [x] topk round trip: kept entries reproduced exactly; report fraction of L2 norm lost to dropped entries
+- [x] Wire check g into `doctor`'s pass/fail table (needs a `validation`-mode run to exercise `mlp_gate`/`mlp_up`/`mlp_out`)
 
 ## 0.18 Loader (neuron access)
 - [ ] `get_neuron(trace_id, layer, idx, span)` -> values + regime codes

@@ -6,6 +6,7 @@ from .checks import (
     check_d_attention_probs_vs_eager,
     check_e_storage_round_trip,
     check_f_add_vector,
+    check_g_mlp_consistency,
 )
 from .doctor import main, print_report, run_doctor
 
@@ -19,6 +20,7 @@ __all__ = [
     "check_d_attention_probs_vs_eager",
     "check_e_storage_round_trip",
     "check_f_add_vector",
+    "check_g_mlp_consistency",
     "get_tolerance",
     "main",
     "print_report",

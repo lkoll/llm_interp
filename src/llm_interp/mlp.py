@@ -16,17 +16,25 @@ REGIME_NAMES = {
 }
 
 
-def regime_from_signs(gate: torch.Tensor, act: torch.Tensor) -> torch.Tensor:
-    """Regime code (uint8), same shape as `gate`/`act`. Needs only the raw gate
-    pre-activation and the resulting neuron activation `act = act_fn(gate) * up`
-    — not `up` itself — since the regime is fully determined by their two signs."""
-    gate_negative = gate < 0
+def regime_from_bits(gate_negative: torch.Tensor, act: torch.Tensor) -> torch.Tensor:
+    """Regime code (uint8), same shape as `act`. Takes the gate-sign *bit*
+    directly (bool/0-1 tensor) rather than the raw gate value — this is what
+    check (g) uses to confirm the packed bit reconstructs the same regime as
+    the full gate value would (`regime_from_signs`)."""
+    gate_negative = gate_negative.bool()
     act_negative = act < 0
-    regime = torch.zeros_like(gate, dtype=torch.uint8)
+    regime = torch.zeros_like(act, dtype=torch.uint8)
     regime = torch.where(~gate_negative & act_negative, torch.full_like(regime, REGIME_NEG), regime)
     regime = torch.where(gate_negative & act_negative, torch.full_like(regime, REGIME_LEAK_NEG), regime)
     regime = torch.where(gate_negative & ~act_negative, torch.full_like(regime, REGIME_DOUBLE_NEG), regime)
     return regime
+
+
+def regime_from_signs(gate: torch.Tensor, act: torch.Tensor) -> torch.Tensor:
+    """Regime code (uint8), same shape as `gate`/`act`. Needs only the raw gate
+    pre-activation and the resulting neuron activation `act = act_fn(gate) * up`
+    — not `up` itself — since the regime is fully determined by their two signs."""
+    return regime_from_bits(gate < 0, act)
 
 
 def pack_gate_sign_bits(gate: torch.Tensor) -> np.ndarray:

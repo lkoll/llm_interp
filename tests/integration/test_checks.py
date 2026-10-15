@@ -7,6 +7,7 @@ from llm_interp.validate import (
     check_d_attention_probs_vs_eager,
     check_e_storage_round_trip,
     check_f_add_vector,
+    check_g_mlp_consistency,
 )
 
 pytestmark = pytest.mark.gpu
@@ -50,3 +51,28 @@ def test_check_e_storage_round_trip():
 def test_check_f_add_vector(validation_context, input_ids):
     result = check_f_add_vector(validation_context, input_ids)
     assert result.passed, result.details or result.error
+
+
+def test_check_g_mlp_consistency(validation_context, input_ids):
+    result = check_g_mlp_consistency(validation_context, input_ids)
+    assert result.passed, result.details or result.error
+    # the local config has MLP capture configured, so this must actually run
+    # the real checks, not take the "no MLP capture configured" skip path
+    assert "skipped" not in result.details
+    assert set(result.details["per_layer"].keys()) == {
+        str(layer) for layer in validation_context.config.capture.mlp.dense_layers
+    } | {str(layer) for layer in validation_context.config.capture.mlp.topk_layers}
+
+
+def test_check_g_mlp_consistency_skips_cleanly_when_no_mlp_configured(validation_context, input_ids):
+    ctx_without_mlp = validation_context.__class__(
+        config=validation_context.config.model_copy(
+            update={"capture": validation_context.config.capture.model_copy(update={"mlp": None})}
+        ),
+        model=validation_context.model,
+        tokenizer=validation_context.tokenizer,
+        adapter=validation_context.adapter,
+    )
+    result = check_g_mlp_consistency(ctx_without_mlp, input_ids)
+    assert result.passed
+    assert "skipped" in result.details

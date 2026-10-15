@@ -7,6 +7,7 @@ from llm_interp.mlp import (
     REGIME_NEG,
     REGIME_POS,
     pack_gate_sign_bits,
+    regime_from_bits,
     regime_from_signs,
     topk_by_abs,
     unpack_gate_sign_bits,
@@ -46,6 +47,21 @@ def test_regime_from_signs_matches_silu_relationship():
             assert r == REGIME_LEAK_NEG
         else:
             assert r == REGIME_DOUBLE_NEG
+
+
+def test_regime_from_bits_matches_regime_from_signs_via_packed_bit():
+    """check (g)'s core claim: regime derived from (sign(act), gate bit) must
+    equal regime derived from the full (gate, up) — i.e. from_bits(gate < 0,
+    act) must agree with from_signs(gate, act) exactly."""
+    torch.manual_seed(2)
+    gate = torch.randn(500)
+    act = torch.randn(500)
+    packed = pack_gate_sign_bits(gate)
+    unpacked = torch.from_numpy(unpack_gate_sign_bits(packed, d_mlp=500)).bool()
+
+    regime_full = regime_from_signs(gate, act)
+    regime_bit = regime_from_bits(unpacked, act)
+    assert torch.equal(regime_full, regime_bit)
 
 
 def test_pack_unpack_gate_sign_bits_round_trip_divisible_by_8():

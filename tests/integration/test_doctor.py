@@ -15,6 +15,7 @@ def test_run_doctor_all_checks_pass_on_local_config():
         "check_d_attention_probs_vs_eager",
         "check_e_storage_round_trip",
         "check_f_add_vector",
+        "check_g_mlp_consistency",
     }
     failures = [r for r in results if not r.passed]
     assert not failures, failures
@@ -24,4 +25,4 @@ def test_main_exits_zero_on_success(capsys):
     exit_code = main(["--config", "configs/qwen3_0p6b_local.yaml"])
     assert exit_code == 0
     captured = capsys.readouterr()
-    assert "6/6 checks passed" in captured.out
+    assert "7/7 checks passed" in captured.out

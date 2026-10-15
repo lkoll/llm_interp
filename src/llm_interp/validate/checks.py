@@ -4,6 +4,7 @@ from pathlib import Path
 import torch
 
 from ..hooks import HookManager
+from ..mlp import pack_gate_sign_bits, regime_from_bits, regime_from_signs, topk_by_abs, unpack_gate_sign_bits
 from ..recompute import recompute_attention, recompute_logits, recompute_qk, recompute_qk_pre_rope, recompute_v
 from .base import CACHE_VS_TEACHER_FORCED_ATOL, MIN_COSINE_SIMILARITY, CheckResult, ValidationContext
 
@@ -270,3 +271,72 @@ def check_f_add_vector(ctx: ValidationContext, input_ids: torch.Tensor, layer_id
         )
     except Exception as e:
         return CheckResult("check_f_add_vector", False, {}, error=str(e))
+
+
+def check_g_mlp_consistency(ctx: ValidationContext, input_ids: torch.Tensor) -> CheckResult:
+    """Addendum A. On the layers configured for MLP capture:
+      - act_fn(gate) * up == mlp_act
+      - down_proj(mlp_act) == mlp_out
+      - regime from (sign(act), packed gate-sign bit) == regime from the full (gate, up)
+      - topk round trip: kept entries reproduced exactly; reports the fraction of
+        L2 norm lost to dropped entries (informational, not a pass/fail gate —
+        a high value means topk is lossy for this k, not that anything is broken)
+    Skipped (reported as passed) if no MLP capture is configured."""
+    try:
+        mlp_cfg = ctx.config.capture.mlp
+        if mlp_cfg is None:
+            return CheckResult("check_g_mlp_consistency", True, {"skipped": "no MLP capture configured"})
+
+        layers = sorted(set(mlp_cfg.dense_layers) | set(mlp_cfg.topk_layers)) or _sample_layers(ctx.adapter.num_layers)
+        ids = input_ids.to(ctx.device)
+        mgr = (
+            HookManager(ctx.adapter)
+            .capture_mlp_gate(layers)
+            .capture_mlp_up(layers)
+            .capture_mlp_act(layers)
+            .capture_mlp_out(layers)
+        )
+        with mgr, torch.no_grad():
+            ctx.model(input_ids=ids, use_cache=False)
+
+        tol = ctx.tolerance
+        all_passed = True
+        per_layer: dict[str, dict] = {}
+        for layer in layers:
+            gate = mgr.captures[("mlp_gate", layer)]
+            up = mgr.captures[("mlp_up", layer)]
+            act = mgr.captures[("mlp_act", layer)]
+            mlp_out = mgr.captures[("mlp_out", layer)]
+
+            expected_act = ctx.adapter.mlp_activation_fn()(gate.to(ctx.device)) * up.to(ctx.device)
+            act_ok = torch.allclose(expected_act.cpu(), act, atol=tol.atol, rtol=tol.rtol)
+
+            down_proj = ctx.adapter.mlp_down_proj(layer)
+            expected_out = down_proj(act.to(ctx.device)).cpu()
+            out_ok = torch.allclose(expected_out, mlp_out, atol=tol.atol, rtol=tol.rtol)
+
+            packed = pack_gate_sign_bits(gate)
+            gate_sign_bit = torch.from_numpy(unpack_gate_sign_bits(packed, d_mlp=gate.shape[-1])).bool()
+            regime_ok = torch.equal(regime_from_signs(gate, act), regime_from_bits(gate_sign_bit, act))
+
+            top_k = mlp_cfg.top_k
+            indices, values, _regime = topk_by_abs(act, gate, top_k)
+            topk_exact = torch.equal(values, act.gather(-1, indices.long()))
+            l2_total = act.norm(dim=-1)
+            l2_kept = values.norm(dim=-1)
+            l2_dropped = (l2_total**2 - l2_kept**2).clamp(min=0).sqrt()
+            frac_l2_lost = (l2_dropped / l2_total.clamp(min=1e-8)).mean().item()
+
+            layer_passed = act_ok and out_ok and regime_ok and topk_exact
+            all_passed = all_passed and layer_passed
+            per_layer[str(layer)] = {
+                "act_ok": act_ok,
+                "out_ok": out_ok,
+                "regime_ok": regime_ok,
+                "topk_exact": topk_exact,
+                "frac_l2_lost_topk": frac_l2_lost,
+            }
+
+        return CheckResult("check_g_mlp_consistency", all_passed, {"per_layer": per_layer})
+    except Exception as e:
+        return CheckResult("check_g_mlp_consistency", False, {}, error=str(e))
