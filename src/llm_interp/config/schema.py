@@ -21,6 +21,35 @@ class ModelConfig(BaseModel):
         return v
 
 
+def _validate_layers(v: list[int]) -> list[int]:
+    if len(set(v)) != len(v):
+        raise ValueError(f"layers must not contain duplicates, got {v}")
+    if any(layer < 0 for layer in v):
+        raise ValueError(f"layers must be non-negative, got {v}")
+    return sorted(v)
+
+
+class MlpCaptureConfig(BaseModel):
+    """Addendum A: native MLP neuron capture. `dense_layers` and `topk_layers`
+    are independent and may overlap (a layer can get both representations) —
+    e.g. the cloud config's "topk on all layers plus dense on 4"."""
+
+    model_config = ConfigDict(frozen=True)
+
+    dense_layers: list[int] = Field(default_factory=list)
+    topk_layers: list[int] = Field(default_factory=list)
+    top_k: int = Field(default=64, gt=0)
+    # Additionally capture dense mlp_gate/mlp_up/mlp_out, for check (g) only —
+    # not for the main capture run (mirrors capture_qk_pre_rope's "validation
+    # runs only" below).
+    capture_validation_extras: bool = False
+
+    @field_validator("dense_layers", "topk_layers")
+    @classmethod
+    def _layers_valid(cls, v: list[int]) -> list[int]:
+        return _validate_layers(v)
+
+
 class CaptureConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -28,15 +57,12 @@ class CaptureConfig(BaseModel):
     capture_final_residual: bool = True
     top_k_logprobs: int = Field(default=20, gt=0)
     capture_qk_pre_rope: bool = False
+    mlp: MlpCaptureConfig | None = None
 
     @field_validator("layers")
     @classmethod
     def _layers_valid(cls, v: list[int]) -> list[int]:
-        if len(set(v)) != len(v):
-            raise ValueError(f"layers must not contain duplicates, got {v}")
-        if any(layer < 0 for layer in v):
-            raise ValueError(f"layers must be non-negative, got {v}")
-        return sorted(v)
+        return _validate_layers(v)
 
 
 class GenerationConfig(BaseModel):

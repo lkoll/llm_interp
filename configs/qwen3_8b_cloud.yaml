@@ -13,6 +13,11 @@ capture:
   capture_final_residual: true
   top_k_logprobs: 20
   capture_qk_pre_rope: false
+  mlp: # Addendum A: native MLP neuron capture — topk on all layers, dense on 4
+    dense_layers: [9, 18, 27, 35] # ~25/50/75% depth of 36 layers + the last
+    topk_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35] # all 36 layers
+    top_k: 64
+    capture_validation_extras: false
 
 generation:
   temperature: 0.6

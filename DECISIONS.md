@@ -130,3 +130,15 @@ Ran the actual production pipeline, not a scaled-down stand-in: `llm-interp gene
 Verified directly against the run on disk, not just by trusting exit codes: 60 traces (30 pairs x 2 conditions), all 28 `resid_pre` layers present with shape `(29809, 1024)`, `final_residual` and `top_logprob_values`/`top_logprob_indices` all aligned to the same 29,809-token index, every trace loadable via `Loader`. 49/60 traces closed `<think>` (11 hit the `max_new_tokens` cap mid-thought — real 0.6B rambling, exactly the behavior CLAUDE.md warned about and `has_think_close`/`response`-span omission was designed to flag, not a bug). Re-ran `capture` a second time: 0 new work, identical 60-trace/29,809-token totals — a genuine no-op, not an assumption. `doctor` passes 6/6 against this same config. Full suite: 97 unit + 24 gpu integration tests, all green.
 
 Phase 0's Definition of Done is met. Per `project_outline.md`: "Stop there." Phase 1 (cloud, Qwen3-4B/8B, bf16, vLLM) and Phase 2 (evaluation) are explicitly out of scope until asked for.
+
+## 2026-10-15 — Addendum A, 0.12 Config: MlpCaptureConfig
+
+`dense_layers` and `topk_layers` are two independent lists (both optional, default empty), not a single `mode` enum — the addendum's own cloud default ("topk on all layers plus dense on 4") needs both active simultaneously on overlapping layers, which a single mutually-exclusive mode couldn't express. Overlap between the two lists is explicitly allowed (no validator rejects it) since a layer getting both representations is exactly what the cloud default does.
+
+`CaptureConfig.mlp: MlpCaptureConfig | None = None` — absent by default so the schema stays backward-compatible with the idea of a config that doesn't want MLP capture at all, not just "all neuron capture disabled."
+
+`capture_validation_extras` (dense `mlp_gate`/`mlp_up`/`mlp_out`, for check g only) mirrors the existing `capture_qk_pre_rope` pattern exactly — same "validation runs only" framing, same off-by-default.
+
+**Resolved the "about 25/50/75% depth + last" layer indices** (flagged as open in the task list): 0.6B (28 layers) -> `[7, 14, 21, 27]`; 8B (36 layers) -> `[9, 18, 27, 35]`. Straightforward arithmetic, not worth a separate question.
+
+`numpy` is not yet a direct dependency — `MlpCaptureConfig` itself has no numpy usage; that lands with storage (0.15), which is where `np.packbits` actually gets called.

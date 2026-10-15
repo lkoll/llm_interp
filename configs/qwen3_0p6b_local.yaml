@@ -13,6 +13,11 @@ capture:
   capture_final_residual: true
   top_k_logprobs: 20
   capture_qk_pre_rope: false # set true only for validation runs
+  mlp: # Addendum A: native MLP neuron capture
+    dense_layers: [7, 14, 21, 27] # ~25/50/75% depth of 28 layers + the last
+    topk_layers: []
+    top_k: 64
+    capture_validation_extras: false # set true only for a validation run (check g)
 
 generation:
   temperature: 0.6

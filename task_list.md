@@ -92,10 +92,10 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons become a first-class unit alongside the residual stream; Phase 1 compares them against SAE/transcoder features. Touches config, adapters, hooks, store, estimator, validate, and loader — not appended at the end, woven through the existing pieces. Same build order pattern as the rest of Phase 0 (config -> adapter -> hooks -> storage -> estimator -> check g -> loader); run tests after each step.
 
 ## 0.12 Config (MLP capture)
-- [ ] `RunConfig` capture section: MLP mode (`dense` / `topk` / `validation`), MLP layers (configurable), topk `k` (default 64)
-- [ ] `configs/qwen3_0p6b_local.yaml`: `dense` mode, 4 layers — candidate indices 7, 14, 21, 27 (~25/50/75% depth of 28 + last); confirm/adjust against the "about" wording when implementing
-- [ ] `configs/qwen3_8b_cloud.yaml`: `topk` on all 36 layers + `dense` on 4 (candidate 9, 18, 27, 35) — written, not run
-- [ ] Validation tests for the new fields
+- [x] `RunConfig` capture section: `MlpCaptureConfig` with independent `dense_layers` / `topk_layers` (may overlap) and `top_k` (default 64)
+- [x] `configs/qwen3_0p6b_local.yaml`: dense on layers 7, 14, 21, 27 (~25/50/75% depth of 28 + last)
+- [x] `configs/qwen3_8b_cloud.yaml`: topk on all 36 layers + dense on 9, 18, 27, 35 — written, not run
+- [x] Validation tests for the new fields
 
 ## 0.13 Adapters (MLP sites)
 - [ ] `ArchAdapter`: new logical sites `mlp_in` (optional), `mlp_gate`, `mlp_up`, `mlp_act` (down_proj input), `mlp_out`
