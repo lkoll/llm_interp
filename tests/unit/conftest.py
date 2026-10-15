@@ -17,6 +17,8 @@ TINY_QWEN3_KWARGS = dict(
     rms_norm_eps=1e-6,
     tie_word_embeddings=True,
     rope_parameters={"rope_type": "default", "rope_theta": 1000000},
+    eos_token_id=1,
+    pad_token_id=1,
 )
 
 

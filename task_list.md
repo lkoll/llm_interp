@@ -41,10 +41,10 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [ ] Check e: bit-exact storage round trip, fp32 and bf16 (uint16) paths (lands with store)
 
 ## 0.5 Generation (`generate/`)
-- [ ] `Generator` interface; `HFGenerator`
-- [ ] `VLLMGenerator` documented stub (pre-tokenized IDs in)
-- [ ] Prompt rendered once (`enable_thinking=True`), tokenized once (`add_special_tokens=False`), asserted == `apply_chat_template(tokenize=True)`
-- [ ] Sampling T=0.6, top_p=0.95, top_k=20, min_p=0; never greedy; capped `max_new_tokens`; store stop reason, truncation flag, seed
+- [x] `Generator` interface; `HFGenerator`
+- [x] `VLLMGenerator` documented stub (pre-tokenized IDs in)
+- [x] Prompt rendered once (`enable_thinking=True`), tokenized once (`add_special_tokens=False`), asserted == `apply_chat_template(tokenize=True)`
+- [x] Sampling T=0.6, top_p=0.95, top_k=20, min_p=0; never greedy; capped `max_new_tokens`; store stop reason, truncation flag, seed
 
 ## 0.6 Prompts (`prompts/`)
 - [ ] `PromptSource` interface
