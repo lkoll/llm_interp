@@ -133,9 +133,9 @@ Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons
 - [x] `top_contexts(layer, idx, pole, n)` — interface stub only (Phase 1 builds the index); must default to >= 1,024 tokens of preceding context (configurable)
 
 ## 0.19 Definition of done (Addendum A)
-- [ ] Toy traces captured with dense `mlp_act` on 4 layers + gate bits
-- [ ] Estimator updated and sanity-checked against the addendum's reference figures
-- [ ] Check g passes
+- [x] Toy traces captured with dense `mlp_act` on 4 layers + gate bits
+- [x] Estimator updated and sanity-checked against the addendum's reference figures
+- [x] Check g passes
 
 ---
 
