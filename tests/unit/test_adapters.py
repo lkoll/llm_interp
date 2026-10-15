@@ -1,5 +1,9 @@
+import copy
+
+import pytest
 import torch
 import transformers.models.qwen3.modeling_qwen3 as qwen3_modeling
+from transformers.models.qwen3.modeling_qwen3 import Qwen3ForCausalLM
 
 from llm_interp.adapters import Qwen3Adapter
 
@@ -110,3 +114,43 @@ def test_apply_qk_norm_and_rotary_match_real_forward(tiny_qwen3_model):
     q_rot, k_rot = adapter.apply_rotary(q_normed, k_normed, position_ids, layer_idx)
     torch.testing.assert_close(q_rot, captured["q_post_rotary"])
     torch.testing.assert_close(k_rot, captured["k_post_rotary"])
+
+
+def test_mlp_module_getters_return_real_submodules(tiny_qwen3_model):
+    adapter = Qwen3Adapter(tiny_qwen3_model)
+    for layer_idx in range(adapter.num_layers):
+        mlp = tiny_qwen3_model.model.layers[layer_idx].mlp
+        assert adapter.mlp(layer_idx) is mlp
+        assert adapter.mlp_gate_proj(layer_idx) is mlp.gate_proj
+        assert adapter.mlp_up_proj(layer_idx) is mlp.up_proj
+        assert adapter.mlp_down_proj(layer_idx) is mlp.down_proj
+
+
+def test_mlp_activation_fn_is_the_real_act_fn(tiny_qwen3_model):
+    adapter = Qwen3Adapter(tiny_qwen3_model)
+    assert adapter.mlp_activation_fn() is tiny_qwen3_model.model.layers[0].mlp.act_fn
+
+    x = torch.randn(5)
+    torch.testing.assert_close(adapter.mlp_activation_fn()(x), torch.nn.functional.silu(x))
+
+
+def test_mlp_activation_negative_min_for_silu(tiny_qwen3_model):
+    adapter = Qwen3Adapter(tiny_qwen3_model)
+    negative_min = adapter.mlp_activation_negative_min
+    assert negative_min == pytest.approx(-0.2784645427610738)
+
+    # SiLU on the negative side never goes below its analytical infimum
+    x = torch.linspace(-50, 0, 10_000)
+    silu_values = torch.nn.functional.silu(x)
+    assert silu_values.min().item() >= negative_min - 1e-6
+
+
+def test_mlp_activation_negative_min_raises_for_unknown_activation(tiny_qwen3_config):
+    cfg = copy.deepcopy(tiny_qwen3_config)
+    cfg.hidden_act = "relu"
+    torch.manual_seed(0)
+    model = Qwen3ForCausalLM(cfg)
+    model.eval()
+    adapter = Qwen3Adapter(model)
+    with pytest.raises(NotImplementedError):
+        adapter.mlp_activation_negative_min

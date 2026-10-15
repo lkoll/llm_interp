@@ -1,7 +1,17 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 import torch
 from torch import nn
+
+# Infimum of each activation function on (-inf, 0) — bounds the MLP-neuron
+# "leak_neg"/"double_neg" regimes (Addendum A). Both SiLU and GELU-tanh are
+# sign-preserving, so the regime logic carries over; GELU-tanh is unused until
+# a Gemma 3 adapter exists.
+_ACTIVATION_NEGATIVE_MIN = {
+    "silu": -0.2784645427610738,
+    "gelu_pytorch_tanh": -0.17000188,
+}
 
 
 class ArchAdapter(ABC):
@@ -93,6 +103,42 @@ class ArchAdapter(ABC):
         """The model's own attention score scaling factor for this layer, read from
         the real submodule rather than recomputed as head_dim**-0.5 — some
         architectures (e.g. Gemma 3) use a custom scaling."""
+
+    # --- MLP sites (Addendum A: native neuron capture) ---
+
+    @abstractmethod
+    def mlp(self, layer_idx: int) -> nn.Module:
+        """The MLP submodule as a whole — hook its forward-pre for `mlp_in`,
+        forward for `mlp_out`."""
+
+    @abstractmethod
+    def mlp_gate_proj(self, layer_idx: int) -> nn.Module:
+        """Hook its forward (output) for `mlp_gate`. A future architecture with a
+        fused gate/up projection must still expose separate gate/up here — split
+        the fused output by config, don't change this interface."""
+
+    @abstractmethod
+    def mlp_up_proj(self, layer_idx: int) -> nn.Module:
+        """Hook its forward (output) for `mlp_up`."""
+
+    @abstractmethod
+    def mlp_down_proj(self, layer_idx: int) -> nn.Module:
+        """Hook its forward-pre (input) for `mlp_act` — act_fn(gate) * up."""
+
+    @abstractmethod
+    def mlp_activation_fn(self) -> Callable[[torch.Tensor], torch.Tensor]:
+        """The model's own activation function (e.g. SiLU), read from a real
+        submodule rather than looked up by name, so recompute matches exactly."""
+
+    @property
+    def mlp_activation_negative_min(self) -> float:
+        """Infimum of `mlp_activation_fn` on (-inf, 0) — bounds the MLP-neuron
+        'leak_neg'/'double_neg' regimes (Addendum A). Generic across
+        architectures: looked up by `config.hidden_act`, not overridden per adapter."""
+        hidden_act = self.config.hidden_act
+        if hidden_act not in _ACTIVATION_NEGATIVE_MIN:
+            raise NotImplementedError(f"negative-side minimum not known for activation {hidden_act!r}")
+        return _ACTIVATION_NEGATIVE_MIN[hidden_act]
 
     # --- recompute primitives (architecture-specific) ---
 

@@ -142,3 +142,11 @@ Phase 0's Definition of Done is met. Per `project_outline.md`: "Stop there." Pha
 **Resolved the "about 25/50/75% depth + last" layer indices** (flagged as open in the task list): 0.6B (28 layers) -> `[7, 14, 21, 27]`; 8B (36 layers) -> `[9, 18, 27, 35]`. Straightforward arithmetic, not worth a separate question.
 
 `numpy` is not yet a direct dependency — `MlpCaptureConfig` itself has no numpy usage; that lands with storage (0.15), which is where `np.packbits` actually gets called.
+
+## 2026-10-15 — Addendum A, 0.13 Adapters: MLP sites
+
+No dedicated `mlp_in` adapter method — it's just the *input* to `mlp(layer_idx)`, and `mlp_out` is that same module's *output*; one module, hooked twice (pre and post), rather than two separate accessors for what's really one site pair. This mirrors how `final_residual` already works (hook `final_norm()`'s input) rather than introducing a new pattern.
+
+`mlp_activation_negative_min` is implemented *once*, concretely, on the `ArchAdapter` base (not abstract, not overridden per adapter) — it's a pure lookup on `config.hidden_act` against a small shared table (`silu`, and `gelu_pytorch_tanh` for a future Gemma 3 adapter), not architecture-specific logic. Only `mlp_activation_fn()` itself stays abstract, since *that* needs a real submodule reference. Raises `NotImplementedError` for an activation not in the table, rather than guessing or silently returning something wrong — verified by constructing a real (tiny) model with `hidden_act="relu"` and checking the raise, not just reasoning about the lookup miss.
+
+`mlp_activation_fn()` returns the model's own already-instantiated `act_fn` object (`ACT2FN[config.hidden_act]`, read off a real `Qwen3MLP`), never a hardcoded `torch.nn.functional.silu` — same principle as `apply_rotary` reusing the model's real `apply_rotary_pos_emb` rather than reimplementing it: guarantees exact match with what the model actually computes, including if a future HF version changes `ACT2FN`'s mapping.

@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import torch
 from torch import nn
 from transformers.models.qwen3.modeling_qwen3 import apply_rotary_pos_emb
@@ -74,6 +76,25 @@ class Qwen3Adapter(ArchAdapter):
     def attention_scaling(self, layer_idx: int) -> float:
         self._check_layer_idx(layer_idx)
         return self.model.model.layers[layer_idx].self_attn.scaling
+
+    def mlp(self, layer_idx: int) -> nn.Module:
+        self._check_layer_idx(layer_idx)
+        return self.model.model.layers[layer_idx].mlp
+
+    def mlp_gate_proj(self, layer_idx: int) -> nn.Module:
+        self._check_layer_idx(layer_idx)
+        return self.model.model.layers[layer_idx].mlp.gate_proj
+
+    def mlp_up_proj(self, layer_idx: int) -> nn.Module:
+        self._check_layer_idx(layer_idx)
+        return self.model.model.layers[layer_idx].mlp.up_proj
+
+    def mlp_down_proj(self, layer_idx: int) -> nn.Module:
+        self._check_layer_idx(layer_idx)
+        return self.model.model.layers[layer_idx].mlp.down_proj
+
+    def mlp_activation_fn(self) -> Callable[[torch.Tensor], torch.Tensor]:
+        return self.model.model.layers[0].mlp.act_fn
 
     def apply_qk_norm(
         self, q: torch.Tensor, k: torch.Tensor, layer_idx: int

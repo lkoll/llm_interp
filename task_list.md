@@ -98,11 +98,11 @@ Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons
 - [x] Validation tests for the new fields
 
 ## 0.13 Adapters (MLP sites)
-- [ ] `ArchAdapter`: new logical sites `mlp_in` (optional), `mlp_gate`, `mlp_up`, `mlp_act` (down_proj input), `mlp_out`
-- [ ] Adapter exposes the activation function and its negative-side minimum (SiLU ≈ -0.278; note GELU-tanh ≈ -0.17 for a future Gemma 3 adapter — both sign-preserving)
-- [ ] `Qwen3Adapter`: confirm `gate_proj`/`up_proj`/`down_proj`/`mlp` module names in installed `modeling_qwen3.py`
-- [ ] Interface must allow a future fused gate/up projection to be split by config (Gemma 3 / Qwen3.6 forward-compat note; no implementation now)
-- [ ] Tests on the tiny random-init fixture
+- [x] `ArchAdapter`: new logical sites `mlp_in` (optional), `mlp_gate`, `mlp_up`, `mlp_act` (down_proj input), `mlp_out`
+- [x] Adapter exposes the activation function and its negative-side minimum (SiLU ≈ -0.278; note GELU-tanh ≈ -0.17 for a future Gemma 3 adapter — both sign-preserving)
+- [x] `Qwen3Adapter`: confirm `gate_proj`/`up_proj`/`down_proj`/`mlp` module names in installed `modeling_qwen3.py`
+- [x] Interface must allow a future fused gate/up projection to be split by config (Gemma 3 / Qwen3.6 forward-compat note; no implementation now)
+- [x] Tests on the tiny random-init fixture
 
 ## 0.14 Hooks (MLP sites)
 - [ ] `mlp_act`: forward-pre-hook on `down_proj`
