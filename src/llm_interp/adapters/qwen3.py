@@ -28,6 +28,10 @@ class Qwen3Adapter(ArchAdapter):
     def head_dim(self) -> int:
         return self.config.head_dim
 
+    @property
+    def intermediate_size(self) -> int:
+        return self.config.intermediate_size
+
     def embeddings(self) -> nn.Module:
         return self.model.model.embed_tokens
 

@@ -16,6 +16,7 @@ def test_dims_read_from_config(tiny_qwen3_model):
     assert adapter.num_attention_heads == cfg.num_attention_heads == 4
     assert adapter.num_key_value_heads == cfg.num_key_value_heads == 2
     assert adapter.head_dim == cfg.head_dim == 16
+    assert adapter.intermediate_size == cfg.intermediate_size == 64
     # the gotcha this fixture is designed to exercise
     assert adapter.head_dim != adapter.hidden_size // adapter.num_attention_heads
 

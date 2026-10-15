@@ -160,3 +160,15 @@ No dedicated `mlp_in` adapter method — it's just the *input* to `mlp(layer_idx
 Capture key scheme: `(site_name, layer_idx)` tuples (`("mlp_gate", 3)`), distinct from the existing bare-`int`-keyed `resid_pre` captures and the string-keyed `"final_residual"` — avoids any collision risk in the shared `captures` dict now that it holds five new site families.
 
 `test_mlp_act_equals_act_fn_gate_times_up` checks the captured values satisfy `mlp_act == act_fn(mlp_gate) * mlp_up` as a *relationship*, not just that each site was independently captured correctly — this is exactly what check g (0.17) will later verify at scale on the real model; doing it now at the hook level catches a wiring mistake before check g even exists.
+
+## 2026-10-15 — Addendum A, 0.15 Storage: mlp.py codec, capture.py wiring, numpy
+
+`numpy==2.5.4` promoted from transitive to a direct dependency — `mlp.py` calls `np.packbits`/`np.unpackbits` directly for the gate-sign bitmask, exactly the case CLAUDE.md's dependency policy flagged in advance (0.0's entry already called this out before it happened).
+
+Regime computation (`regime_from_signs`) needs only `gate` and `act` — not `up` — since `sign(act) = sign(gate) * sign(up)` already; this is the same fact the addendum uses to justify storing a gate-sign bit instead of both `g` and `u`. Kept as one pure function in a new top-level `mlp.py` (parallel to `spans.py`, `recompute.py`) rather than inside `capture.py` or `store/`, since both `capture.py` (producing) and the eventual check (g) / loader (consuming) need the identical regime logic — a single source of truth for "what a regime code means" was the whole point of having regime codes at all.
+
+`capture.py`'s MLP hook registration always includes `capture_mlp_gate` whenever *any* MLP capture is configured (dense or topk) — gate sign is needed for both dense's packed bits and topk's regime codes — but `capture_mlp_up`/`capture_mlp_out` are registered *only* when `capture_validation_extras` is set. Getting this wrong (e.g. always capturing `up`) would silently blow past the point of the dense/topk space savings the addendum's reference figures are built on.
+
+`dense_layers` and `topk_layers` are allowed to overlap in `_write_mlp_sites` exactly as the config schema allows — a layer in both lists gets both `mlp_act`/`mlp_gate_sign` *and* `mlp_topk_index`/`mlp_topk_value`/`mlp_topk_regime` written, independently, from the same single captured `act`/`gate` pair (no redundant extra forward pass).
+
+Verified against the real model, not just the codec's own unit tests: three GPU integration tests cover dense (bit-exact `mlp_act` and gate-sign bits against independent hooks on a fresh forward pass), topk (shape/dtype/index-range/regime-validity checks), and validation extras (`act_fn(gate) * up == mlp_act` and `down_proj(mlp_act) == mlp_out` — literally check (g)'s first two conditions, previewed here before check g exists as a named check in 0.17).

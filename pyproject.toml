@@ -11,6 +11,7 @@ dependencies = [
     "pydantic==2.14.1",
     "datasets==5.1.0",
     "pyyaml==6.0.3",
+    "numpy==2.5.4", # previously transitive only; direct now for np.packbits/np.unpackbits (Addendum A MLP gate-sign bits)
 ]
 
 [dependency-groups]

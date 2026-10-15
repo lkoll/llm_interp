@@ -56,6 +56,11 @@ class ArchAdapter(ABC):
     @abstractmethod
     def head_dim(self) -> int: ...
 
+    @property
+    @abstractmethod
+    def intermediate_size(self) -> int:
+        """MLP width (`d_mlp`) — Addendum A neuron capture."""
+
     # --- logical sites: modules ---
 
     @abstractmethod

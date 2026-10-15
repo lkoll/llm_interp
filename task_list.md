@@ -112,10 +112,10 @@ Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons
 - [x] Tests
 
 ## 0.15 Storage (dense / topk / validation modes)
-- [ ] `dense`: `mlp_act[l]` as `[N_tokens, d_mlp]` in run dtype; `mlp_gate_sign[l]` as packed bits `[N_tokens, d_mlp/8]` uint8 (`np.packbits`; 1 = gate negative) — **flags `numpy` as a new direct dependency** (previously transitive only; flag per CLAUDE.md's dependency policy when implementing)
-- [ ] `topk` (k=64 default): per (token, layer) — int16 index, value in run dtype, uint8 regime code, kept by `|a|`
-- [ ] `validation`: additionally dense `mlp_gate`, `mlp_up`, `mlp_out` (check g only)
-- [ ] Bit-exact round-trip tests for packed gate-sign bits and topk encoding (extends check e)
+- [x] `dense`: `mlp_act[l]` as `[N_tokens, d_mlp]` in run dtype; `mlp_gate_sign[l]` as packed bits `[N_tokens, d_mlp/8]` uint8 (`np.packbits`; 1 = gate negative) — **flags `numpy` as a new direct dependency** (previously transitive only; flag per CLAUDE.md's dependency policy when implementing)
+- [x] `topk` (k=64 default): per (token, layer) — int16 index, value in run dtype, uint8 regime code, kept by `|a|`
+- [x] `validation`: additionally dense `mlp_gate`, `mlp_up`, `mlp_out` (check g only)
+- [x] Bit-exact round-trip tests for packed gate-sign bits and topk encoding (extends check e)
 
 ## 0.16 Estimator (MLP sites)
 - [ ] `estimate.py`: include dense act + gate bits, or topk, per configured MLP layer, in the per-site byte accounting

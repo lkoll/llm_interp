@@ -678,6 +678,7 @@ source = { editable = "." }
 dependencies = [
     { name = "datasets" },
     { name = "duckdb" },
+    { name = "numpy" },
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -699,6 +700,7 @@ notebook = [
 requires-dist = [
     { name = "datasets", specifier = "==5.1.0" },
     { name = "duckdb", specifier = "==1.5.6" },
+    { name = "numpy", specifier = "==2.5.4" },
     { name = "pyarrow", specifier = "==26.0.0" },
     { name = "pydantic", specifier = "==2.14.1" },
     { name = "pyyaml", specifier = "==6.0.3" },

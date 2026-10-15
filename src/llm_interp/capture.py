@@ -5,6 +5,7 @@ import torch
 from .adapters.base import ArchAdapter
 from .config import RunConfig
 from .hooks import HookManager
+from .mlp import pack_gate_sign_bits, topk_by_abs
 from .prompts.pairs import PairTrace
 from .recompute import recompute_qk_pre_rope
 from .spans import find_answer_value_span, find_hint_span, find_response_span, find_think_spans
@@ -68,6 +69,12 @@ class CaptureRunner:
         mgr = HookManager(self.adapter).capture_resid_pre(self.config.capture.layers)
         if self.config.capture.capture_final_residual:
             mgr.capture_final_residual()
+        mlp_cfg = self.config.capture.mlp
+        if mlp_cfg is not None:
+            mlp_layers = sorted(set(mlp_cfg.dense_layers) | set(mlp_cfg.topk_layers))
+            mgr.capture_mlp_act(mlp_layers).capture_mlp_gate(mlp_layers)
+            if mlp_cfg.capture_validation_extras:
+                mgr.capture_mlp_up(mlp_layers).capture_mlp_out(mlp_layers)
         with mgr:
             with torch.no_grad():
                 out = self.model(input_ids=device_ids, use_cache=False)
@@ -146,7 +153,45 @@ class CaptureRunner:
                 self.zarr_store.append(f"qk_pre_rope/{layer}_q", q[0].transpose(0, 1).contiguous().to("cpu"))
                 self.zarr_store.append(f"qk_pre_rope/{layer}_k", k[0].transpose(0, 1).contiguous().to("cpu"))
 
+        self._write_mlp_sites(mgr, canonical)
+
         return canonical
+
+    def _write_mlp_sites(self, mgr: HookManager, canonical: tuple[int, int]) -> None:
+        mlp_cfg = self.config.capture.mlp
+        if mlp_cfg is None:
+            return
+
+        for layer in sorted(set(mlp_cfg.dense_layers) | set(mlp_cfg.topk_layers)):
+            act = mgr.captures[("mlp_act", layer)][0]  # [N, d_mlp], drop batch dim
+            gate = mgr.captures[("mlp_gate", layer)][0]
+
+            if layer in mlp_cfg.dense_layers:
+                offset = self.zarr_store.append(f"mlp_act/{layer}", act)
+                assert offset == canonical, f"mlp_act/{layer} offset {offset} != {canonical}"
+                gate_sign_packed = torch.from_numpy(pack_gate_sign_bits(gate))
+                offset = self.zarr_store.append(f"mlp_gate_sign/{layer}", gate_sign_packed)
+                assert offset == canonical, f"mlp_gate_sign/{layer} offset {offset} != {canonical}"
+
+            if layer in mlp_cfg.topk_layers:
+                indices, values, regime = topk_by_abs(act, gate, mlp_cfg.top_k)
+                offset = self.zarr_store.append(f"mlp_topk_index/{layer}", indices)
+                assert offset == canonical, f"mlp_topk_index/{layer} offset {offset} != {canonical}"
+                offset = self.zarr_store.append(f"mlp_topk_value/{layer}", values)
+                assert offset == canonical, f"mlp_topk_value/{layer} offset {offset} != {canonical}"
+                offset = self.zarr_store.append(f"mlp_topk_regime/{layer}", regime)
+                assert offset == canonical, f"mlp_topk_regime/{layer} offset {offset} != {canonical}"
+
+            if mlp_cfg.capture_validation_extras:
+                up = mgr.captures[("mlp_up", layer)][0]
+                mlp_out = mgr.captures[("mlp_out", layer)][0]
+                for site, data in (
+                    (f"mlp_gate/{layer}", gate),
+                    (f"mlp_up/{layer}", up),
+                    (f"mlp_out/{layer}", mlp_out),
+                ):
+                    offset = self.zarr_store.append(site, data)
+                    assert offset == canonical, f"{site} offset {offset} != {canonical}"
 
     def _compute_span_rows(self, trace_id: str, trace: PairTrace, full_ids_list: list[int]) -> list[dict]:
         span_rows: list[dict] = []
