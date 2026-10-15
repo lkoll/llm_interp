@@ -105,11 +105,11 @@ Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons
 - [x] Tests on the tiny random-init fixture
 
 ## 0.14 Hooks (MLP sites)
-- [ ] `mlp_act`: forward-pre-hook on `down_proj`
-- [ ] `mlp_gate` / `mlp_up`: forward hooks on `gate_proj` / `up_proj`
-- [ ] `mlp_out`: forward hook on `mlp`
-- [ ] Same discipline as existing hooks: context-managed, always removed, detach/clone/move to CPU promptly
-- [ ] Tests
+- [x] `mlp_act`: forward-pre-hook on `down_proj`
+- [x] `mlp_gate` / `mlp_up`: forward hooks on `gate_proj` / `up_proj`
+- [x] `mlp_out`: forward hook on `mlp`
+- [x] Same discipline as existing hooks: context-managed, always removed, detach/clone/move to CPU promptly
+- [x] Tests
 
 ## 0.15 Storage (dense / topk / validation modes)
 - [ ] `dense`: `mlp_act[l]` as `[N_tokens, d_mlp]` in run dtype; `mlp_gate_sign[l]` as packed bits `[N_tokens, d_mlp/8]` uint8 (`np.packbits`; 1 = gate negative) — **flags `numpy` as a new direct dependency** (previously transitive only; flag per CLAUDE.md's dependency policy when implementing)
