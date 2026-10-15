@@ -80,10 +80,10 @@ Build order (run tests after each step): config -> adapter -> hooks -> checks a/
 - [x] README (setup + commands), DECISIONS.md
 
 ## 0.11 Definition of done (then STOP)
-- [ ] `doctor` passes for local config
-- [ ] 30 paired traces generated + captured (28 layers resid_pre, final residual, top-k logprobs) and loadable
-- [ ] Re-running capture is a no-op
-- [ ] Tests green; README + DECISIONS.md complete
+- [x] `doctor` passes for local config
+- [x] 30 paired traces generated + captured (28 layers resid_pre, final residual, top-k logprobs) and loadable
+- [x] Re-running capture is a no-op
+- [x] Tests green; README + DECISIONS.md complete
 
 ---
 
