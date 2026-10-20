@@ -74,6 +74,14 @@ def estimate_bytes(config: RunConfig, num_tokens: int) -> EstimateResult:
     )
 
 
+def default_tokens_per_trace(config: RunConfig) -> int:
+    """Nominal per-trace token count when the caller doesn't have a real one yet
+    (e.g. before any generation has run): the generation cap plus a rough prompt
+    length. Shared by `estimate`'s CLI and doctor's estimate-vs-free-space check
+    so the two don't drift apart on what "a trace" is assumed to cost."""
+    return config.generation.max_new_tokens + 100
+
+
 def format_bytes(n: int) -> str:
     size = float(n)
     for unit in ("B", "KB", "MB", "GB", "TB"):

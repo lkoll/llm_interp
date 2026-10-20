@@ -155,36 +155,40 @@ Source: `project_outline.md` "Addendum A" (added 2026-10-15). Native MLP neurons
 
 Source: `project_outline.md` "Addendum B" (added 2026-10-15). RunPod Secure Cloud + one network volume. Supersedes the old generic "setup script" bullet above with a concrete breakdown. The manual steps are Luke's own one-time account/pod setup, not agent-buildable; everything else is a script or a `doctor` addition that ships with the repo.
 
-### Manual steps (Luke, once — not agent work)
-- [ ] Private GitHub repo, pushed from WSL
-- [ ] SSH keys: one on Windows (VS Code Remote-SSH), one in WSL (rsync); both pasted into RunPod account settings
+**2026-10-20 update (see DECISIONS.md): runs are decoupled per model, not one long-lived shared volume.** Qwen3-8B and the later 27B-class work each get their own network volume, pulled down and deleted when that run is done. This drops the "one data center with both 48 GB and 80 GB tiers" constraint below — each volume only needs to live in a data center with good price/availability for *that run's* tier.
+
+### Manual steps (Luke, once per cloud run — not agent work)
+- [x] Private GitHub repo, pushed from WSL
+- [x] SSH keys: one on Windows (VS Code Remote-SSH), one in WSL (rsync); both pasted into RunPod account settings
 - [ ] Prepaid credit only, no auto-reload
-- [ ] Network volume created in a data center offering both 48 GB and 80 GB GPU tiers
+- [ ] Network volume created per model/run, in whichever data center has the best price/availability for that run's GPU tier (48 GB for Qwen3-4B/8B; 80 GB only when a 27B-class run comes up) — no longer needs both tiers in one data center
 - [ ] Pod created: official PyTorch template, Secure Cloud, volume at `/workspace`, `HF_TOKEN` as a pod env var
 - [ ] VS Code Remote-SSH connected to `/workspace/llm_interp`; coding agent extension installed remotely
 
 ### Scripts (`scripts/`)
-- [ ] `cloud_setup.sh` (idempotent): check GPU via `nvidia-smi`; install uv if missing; export + persist `HF_HOME`/`UV_CACHE_DIR`/store root to `~/.bashrc`; clone or pull the repo; `uv sync` for the main env (CUDA torch matching the driver) plus a separate vLLM env; pre-download weights for the chosen config (`HF_TOKEN` from env, never written into the repo); run `doctor` with the cloud config
-- [ ] `run.sh <run_id> <command>`: run inside a named `tmux` session, logs to `/workspace/runs/<run_id>/logs/`; heartbeat file while running; `DONE` marker + exit code at the end; optional `--stop-pod-when-done` (read pod ID from env, call `runpodctl pod stop <id>`; skip with a warning if the CLI/ID isn't available — confirm the actual env var RunPod sets before wiring this up)
-- [ ] `pull_run.sh <run_id> <dest>`: rsync over full SSH pod -> local archive path; verify checksums; optional `--delete-remote-after-verify`
-- [ ] `backup_meta.sh`: copy the small, irreplaceable files (traces/index/spans/annotations Parquet, manifests, configs) to a backup location — default a `meta/` folder committed to the repo
+- [x] `cloud_setup.sh` (idempotent): check GPU via `nvidia-smi`; install uv if missing; export + persist `HF_HOME`/`UV_CACHE_DIR` to `~/.bashrc`; clone or pull the repo (via `GITHUB_TOKEN`, see DECISIONS.md); `uv sync` for the main env plus a separate, unpinned vLLM env; pre-download weights for the chosen config (`HF_TOKEN` from env, never written into the repo); run `doctor` with the cloud config and `--storage-root` derived from the config's `run_name` under `/workspace/runs/` — not yet run against a real pod
+- [x] `run.sh <run_id> <command>`: run inside a named `tmux` session, logs to `/workspace/runs/<run_id>/logs/`; heartbeat file while running; `DONE` marker + exit code at the end; optional `--stop-pod-when-done` (`runpodctl stop pod "$RUNPOD_POD_ID"` — confirmed both the env var and the correct argument order, which is reversed from this bullet's original phrasing; skips with a warning if the CLI/env var isn't available) — tested locally end-to-end (success, failure, and the warning path) with real `tmux`
+- [x] `pull_run.sh <run_id> <dest>`: rsync over full SSH pod -> local archive path; verified with an independent `sha256sum` pass (not just rsync's own transfer-time checksums); optional `--delete-remote-after-verify` — argument/usage paths tested locally; the real rsync/ssh path needs a live pod to verify (no local sshd to test against)
+- [x] `backup_meta.sh`: copies the four Parquet tables, `manifest.json`, and `generated_traces.json` to a `meta/<run_name>/` folder (default), skipping `activations.zarr/` — tested against both a mock run and the real Phase 0 `runs/qwen3_0p6b_local` run on disk
 
 ### `doctor` additions (cloud-specific)
-- [ ] Report GPU, driver, CUDA version, bf16 support, free VRAM
-- [ ] Fail if `storage_root` or `HF_HOME` isn't on the network volume (data would vanish with the pod)
-- [ ] Benchmark write/read throughput on the store path
-- [ ] Compare the run's `estimate`d size against free space on the volume
+- [x] Report GPU, driver, CUDA version, bf16 support, free VRAM
+- [x] Fail if `storage_root` or `HF_HOME` isn't on the network volume (data would vanish with the pod)
+- [x] Benchmark write/read throughput on the store path
+- [x] Compare the run's `estimate`d size against free space on the volume
+
+All four gated on `RUNPOD_POD_ID` being set (skip-as-pass otherwise, same convention as check (g)'s MLP-config gate) — see DECISIONS.md. Verified both the skip path (CPU unit test) and the real logic (GPU integration test against this machine's RTX 2060, simulating pod env vars) — all local + GPU tests green (131 unit, 39 GPU).
 
 ### Storage policy
 - [ ] Precious (back up every run): token IDs, metadata, spans, annotations, manifests, configs — small, via `backup_meta.sh`
 - [ ] Regenerable (treat as cache): activations — re-capturable from stored token IDs at the same model revision + dtype (manifest records hardware, since values may differ slightly across GPU types)
 - [ ] Zarr chunk size ~4,096 tokens (16 MB for 0.6B fp32 residual stream; 32 MB for 8B bf16) for sequential reads on archive drives — note this is a *larger* chunk than Phase 0's current chunking; reconcile when implementing
-- [ ] Finished cloud runs archived to local 2 TB drive via `pull_run.sh`, then deleted from the volume
+- [ ] Finished cloud runs archived to local 2 TB drive via `pull_run.sh`, then deleted from the volume — per the 2026-10-20 decoupling decision, once a model's run is fully pulled and verified with no further runs planned on that volume, delete the whole volume (not just prune files from it) to stop the per-GB/month charge
 
 ### Cost guardrails
 - [ ] Terminate pods when idle (volume persists)
 - [ ] Default to 48 GB cards; 80 GB only for 27B-class runs
-- [ ] Monthly check of volume usage; prune already-pulled runs
+- [ ] Monthly check of volume usage; prune already-pulled runs, or delete the volume outright once a model's run is fully archived locally
 
 # PHASE 2 — Evaluation (later)
 

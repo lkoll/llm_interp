@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .capture import CaptureRunner
 from .config import load_config
-from .estimate import estimate_bytes, print_estimate
+from .estimate import default_tokens_per_trace, estimate_bytes, print_estimate
 from .generate import HFGenerator
 from .loader import Loader
 from .model_loading import build_adapter, load_model_and_tokenizer
@@ -16,7 +16,12 @@ GENERATED_TRACES_FILENAME = "generated_traces.json"
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
-    results = run_doctor(args.config)
+    results = run_doctor(
+        args.config,
+        num_traces=args.num_traces,
+        tokens_per_trace=args.tokens_per_trace,
+        storage_root=args.storage_root,
+    )
     print_report(results)
     return 0 if all(r.passed for r in results) else 1
 
@@ -25,7 +30,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     tokens_per_trace = args.tokens_per_trace
     if tokens_per_trace is None:
-        tokens_per_trace = config.generation.max_new_tokens + 100  # nominal prompt length
+        tokens_per_trace = default_tokens_per_trace(config)
     num_tokens = args.num_traces * tokens_per_trace
     result = estimate_bytes(config, num_tokens)
     print_estimate(result)
@@ -99,8 +104,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="llm-interp")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    p_doctor = subparsers.add_parser("doctor", help="Run validation checks a-f and print a pass/fail table.")
+    p_doctor = subparsers.add_parser("doctor", help="Run validation checks a-g (plus cloud checks on a RunPod pod) and print a pass/fail table.")
     p_doctor.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
+    p_doctor.add_argument("--num-traces", type=int, default=60, help="For the cloud estimate-vs-free-space check.")
+    p_doctor.add_argument("--tokens-per-trace", type=int, default=None)
+    p_doctor.add_argument("--storage-root", default=None, help="Overrides the config's storage_root.")
     p_doctor.set_defaults(func=cmd_doctor)
 
     p_estimate = subparsers.add_parser("estimate", help="Estimate storage bytes for a capture run before running it.")

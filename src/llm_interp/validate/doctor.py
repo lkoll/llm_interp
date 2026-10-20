@@ -10,6 +10,7 @@ from pathlib import Path
 import torch
 
 from ..config import load_config
+from ..estimate import default_tokens_per_trace
 from ..model_loading import build_adapter, load_model_and_tokenizer
 from .base import CheckResult, ValidationContext
 from .checks import (
@@ -20,6 +21,12 @@ from .checks import (
     check_e_storage_round_trip,
     check_f_add_vector,
     check_g_mlp_consistency,
+)
+from .cloud_checks import (
+    check_cloud_estimate_vs_free_space,
+    check_cloud_gpu_report,
+    check_cloud_network_volume,
+    check_cloud_storage_throughput,
 )
 
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[3] / "configs" / "qwen3_0p6b_local.yaml"
@@ -43,8 +50,15 @@ def print_report(results: list[CheckResult]) -> None:
     print(f"\n{n_passed}/{len(results)} checks passed.")
 
 
-def run_doctor(config_path: str | Path) -> list[CheckResult]:
+def run_doctor(
+    config_path: str | Path,
+    num_traces: int = 60,
+    tokens_per_trace: int | None = None,
+    storage_root: str | Path | None = None,
+) -> list[CheckResult]:
     config = load_config(config_path)
+    if storage_root is not None:
+        config = config.model_copy(update={"storage_root": Path(storage_root)})
 
     torch.manual_seed(0)
     torch.use_deterministic_algorithms(True)
@@ -54,6 +68,10 @@ def run_doctor(config_path: str | Path) -> list[CheckResult]:
     ctx = ValidationContext(config=config, model=model, tokenizer=tokenizer, adapter=adapter)
     input_ids = tokenizer(VALIDATION_TEXT, return_tensors="pt").input_ids
 
+    if tokens_per_trace is None:
+        tokens_per_trace = default_tokens_per_trace(config)
+    num_tokens = num_traces * tokens_per_trace
+
     return [
         check_a_logits_from_final_residual(ctx, input_ids),
         check_b_kv_cache_vs_teacher_forced(ctx, input_ids[0]),
@@ -62,15 +80,29 @@ def run_doctor(config_path: str | Path) -> list[CheckResult]:
         check_e_storage_round_trip(),
         check_f_add_vector(ctx, input_ids),
         check_g_mlp_consistency(ctx, input_ids),
+        # Addendum B: skipped (reported as passed) unless RUNPOD_POD_ID is set --
+        # see cloud_checks.py's module docstring.
+        check_cloud_gpu_report(config),
+        check_cloud_network_volume(config),
+        check_cloud_storage_throughput(config),
+        check_cloud_estimate_vs_free_space(config, num_tokens),
     ]
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run all validation checks (a-g) and print a pass/fail table.")
+    parser = argparse.ArgumentParser(description="Run all validation checks (a-g, plus cloud checks on a RunPod pod) and print a pass/fail table.")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to a RunConfig YAML file.")
+    parser.add_argument("--num-traces", type=int, default=60, help="For the cloud estimate-vs-free-space check.")
+    parser.add_argument("--tokens-per-trace", type=int, default=None)
+    parser.add_argument("--storage-root", default=None, help="Overrides the config's storage_root.")
     args = parser.parse_args(argv)
 
-    results = run_doctor(args.config)
+    results = run_doctor(
+        args.config,
+        num_traces=args.num_traces,
+        tokens_per_trace=args.tokens_per_trace,
+        storage_root=args.storage_root,
+    )
     print_report(results)
     return 0 if all(r.passed for r in results) else 1
 

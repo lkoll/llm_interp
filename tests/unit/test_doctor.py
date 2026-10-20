@@ -18,7 +18,7 @@ def test_print_report_shows_pass_fail_and_details(capsys):
 
 
 def test_main_exits_nonzero_on_any_failure(monkeypatch, capsys):
-    def fake_run_doctor(config_path):
+    def fake_run_doctor(config_path, **kwargs):
         return [
             CheckResult("check_a", True, {}),
             CheckResult("check_b", False, {}, error="simulated failure"),
@@ -31,8 +31,20 @@ def test_main_exits_nonzero_on_any_failure(monkeypatch, capsys):
 
 
 def test_main_exits_zero_when_all_pass(monkeypatch):
-    def fake_run_doctor(config_path):
+    def fake_run_doctor(config_path, **kwargs):
         return [CheckResult("check_a", True, {}), CheckResult("check_b", True, {})]
 
     monkeypatch.setattr("llm_interp.validate.doctor.run_doctor", fake_run_doctor)
     assert main(["--config", "irrelevant.yaml"]) == 0
+
+
+def test_main_passes_num_traces_and_tokens_per_trace_through(monkeypatch):
+    captured_kwargs = {}
+
+    def fake_run_doctor(config_path, **kwargs):
+        captured_kwargs.update(kwargs)
+        return [CheckResult("check_a", True, {})]
+
+    monkeypatch.setattr("llm_interp.validate.doctor.run_doctor", fake_run_doctor)
+    main(["--config", "irrelevant.yaml", "--num-traces", "200", "--tokens-per-trace", "500"])
+    assert captured_kwargs == {"num_traces": 200, "tokens_per_trace": 500, "storage_root": None}
