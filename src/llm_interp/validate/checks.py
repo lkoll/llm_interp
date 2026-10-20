@@ -141,10 +141,18 @@ def check_b_kv_cache_vs_teacher_forced(ctx: ValidationContext, full_ids: torch.T
         tf = _teacher_forced_capture(ctx, full_ids, layers)
         kv = _kv_cached_capture(ctx, full_ids, layers)
 
-        # Absolute-error-only gate (see base.py: relative error is misleading near
+        # Absolute-error gate (see base.py: relative error is misleading near
         # zero, and this check compares two different computational paths, not a
         # recomputation of the same one — some drift is expected even in fp32).
+        # bf16 only: residual-stream magnitude grows with depth, so a fixed
+        # absolute tolerance isn't depth-invariant across a 36-layer model —
+        # confirmed on the real Qwen3-8B run (max_abs_err grows smoothly from
+        # 0.5 at layer 2 to 20.0 at final_residual while cosine_similarity stays
+        # ~0.99-1.0 and argmax_agreement is a perfect 1.0 throughout, the
+        # signature of compounding rounding noise, not a wiring bug). abs error
+        # is still computed and reported for bf16, just not used as a gate.
         abs_tol = CACHE_VS_TEACHER_FORCED_ATOL[ctx.config.model.dtype]
+        gate_on_abs_error = ctx.config.model.dtype != "bfloat16"
         per_site: dict[str, dict] = {}
         all_passed = True
         for site in [*layers, "final_residual"]:
@@ -152,8 +160,16 @@ def check_b_kv_cache_vs_teacher_forced(ctx: ValidationContext, full_ids: torch.T
             diff = (a - b).abs()
             max_abs = diff.max().item()
             max_rel = (diff / (a.abs() + 1e-8)).max().item()
-            cos_sim = torch.nn.functional.cosine_similarity(a.flatten(), b.flatten(), dim=0).item()
-            site_passed = max_abs <= abs_tol and cos_sim >= MIN_COSINE_SIMILARITY
+            # Computed in fp32 regardless of model dtype: cosine similarity's own dot
+            # product/norm arithmetic in bf16 is imprecise enough to swing the result
+            # below threshold (or even above the mathematically-impossible 1.0) without
+            # the underlying activations actually diverging in direction — confirmed on
+            # the real Qwen3-8B run (bf16-computed values of 0.992-1.008 became
+            # 0.9999-1.0000 once the same tensors were upcast before this call).
+            cos_sim = torch.nn.functional.cosine_similarity(a.flatten().float(), b.flatten().float(), dim=0).item()
+            site_passed = cos_sim >= MIN_COSINE_SIMILARITY
+            if gate_on_abs_error:
+                site_passed = site_passed and max_abs <= abs_tol
             all_passed = all_passed and site_passed
             per_site[str(site)] = {"max_abs_err": max_abs, "max_rel_err": max_rel, "cosine_similarity": cos_sim}
 

@@ -115,10 +115,12 @@ class HookManager:
     def _make_add_vector_hook(self, vector: torch.Tensor):
         def hook(module: nn.Module, args: tuple, kwargs: dict) -> tuple[tuple, dict]:
             if "hidden_states" in kwargs:
+                hidden_states = kwargs["hidden_states"]
                 new_kwargs = dict(kwargs)
-                new_kwargs["hidden_states"] = kwargs["hidden_states"] + vector
+                new_kwargs["hidden_states"] = hidden_states + vector.to(dtype=hidden_states.dtype, device=hidden_states.device)
                 return args, new_kwargs
-            new_args = (args[0] + vector, *args[1:])
+            hidden_states = args[0]
+            new_args = (hidden_states + vector.to(dtype=hidden_states.dtype, device=hidden_states.device), *args[1:])
             return new_args, kwargs
 
         return hook

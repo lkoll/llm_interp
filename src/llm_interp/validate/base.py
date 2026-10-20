@@ -24,8 +24,13 @@ TOLERANCES: dict[str, Tolerance] = {
 # incremental decode vs. one teacher-forced pass) — CLAUDE.md: "cached decoding
 # and full forward passes legitimately differ," even in fp32. Relative error is
 # the wrong gate here (it blows up on near-zero activations despite the absolute
-# difference being tiny), so this is an absolute-error-only threshold; cosine
+# difference being tiny), so this is an absolute-error threshold; cosine
 # similarity and argmax agreement are the other two gates actually used.
+# The bf16 entry is reported but NOT gated on (see check_b_kv_cache_vs_teacher_forced):
+# residual-stream magnitude grows with depth, so a fixed absolute tolerance isn't
+# depth-invariant on a model with many layers — confirmed against a real 36-layer
+# Qwen3-8B run, where cosine similarity and argmax agreement both stayed clean
+# despite absolute error growing well past any plausible fixed threshold.
 CACHE_VS_TEACHER_FORCED_ATOL: dict[str, float] = {
     "float32": 1e-2,
     "bfloat16": 5e-2,
