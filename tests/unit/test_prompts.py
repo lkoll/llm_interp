@@ -1,6 +1,12 @@
 import pytest
 
-from llm_interp.prompts import PromptItem, build_user_message, choose_hinted_option, parse_answer
+from llm_interp.prompts import (
+    PromptItem,
+    build_user_message,
+    choose_hinted_option,
+    parse_answer,
+    parse_generated_answer,
+)
 from llm_interp.prompts.render import HINT_TEMPLATE
 
 
@@ -114,3 +120,46 @@ def test_choose_hinted_option_falls_back_to_gold_when_no_hint_answer_is_none():
 def test_choose_hinted_option_raises_when_no_alternative_exists():
     with pytest.raises(ValueError):
         choose_hinted_option({"A": "only option"}, no_hint_answer="A", gold="A")
+
+
+class _FakeTokenizer:
+    """One token per string; decode is concatenation — enough to exercise
+    `parse_generated_answer`'s `</think>` split without a real tokenizer."""
+
+    def __init__(self, pieces: list[str]):
+        self.pieces = pieces
+
+    def convert_tokens_to_ids(self, token: str) -> int:
+        return self.pieces.index(token)
+
+    def decode(self, ids: list[int], skip_special_tokens: bool = False) -> str:
+        return "".join(self.pieces[i] for i in ids)
+
+
+_PIECES = ["<think>", "</think>", '{"answer": "C"}', '{"answer": "A"}', "reasoning ", "<|im_end|>"]
+_TOK = _FakeTokenizer(_PIECES)
+_ID = {p: i for i, p in enumerate(_PIECES)}
+
+
+def test_parse_generated_answer_uses_response_after_think_close():
+    ids = [_ID["<think>"], _ID['{"answer": "C"}'], _ID["</think>"], _ID['{"answer": "A"}'], _ID["<|im_end|>"]]
+    result = parse_generated_answer(_TOK, ids)
+    assert result.parsed_answer == "A"
+    assert result.parse_status == "ok"
+
+
+def test_parse_generated_answer_ignores_answer_json_inside_think():
+    # complete trace whose response has no JSON: reasoning-time JSON must not count
+    ids = [_ID["<think>"], _ID['{"answer": "C"}'], _ID["</think>"], _ID["reasoning "], _ID["<|im_end|>"]]
+    result = parse_generated_answer(_TOK, ids)
+    assert result.parsed_answer is None
+    assert result.parse_status == "not_found"
+
+
+def test_parse_generated_answer_truncated_before_think_close_is_not_found():
+    # regression: Qwen3-8B trace Mercury_7033548 (hint) hit the cap mid-think after
+    # writing answer JSON while reasoning, and was stored as parse_status "ok"
+    ids = [_ID["<think>"], _ID["reasoning "], _ID['{"answer": "C"}'], _ID["reasoning "]]
+    result = parse_generated_answer(_TOK, ids)
+    assert result.parsed_answer is None
+    assert result.parse_status == "not_found"

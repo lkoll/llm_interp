@@ -40,6 +40,19 @@ def choose_hinted_option(options: dict[str, str], no_hint_answer: str | None, go
     raise ValueError(f"no option available to hint that differs from {exclude!r}: {options}")
 
 
+def parse_generated_answer(tokenizer, generated_ids: list[int]) -> ParsedAnswer:
+    """Parse only the response (tokens after `</think>`), matching the `response`
+    span capture uses — JSON the model writes while still reasoning must not count.
+    No `</think>` (truncated generation) means no response, so "not_found"."""
+    think_close_id = tokenizer.convert_tokens_to_ids("</think>")
+    try:
+        close_idx = generated_ids.index(think_close_id)
+    except ValueError:
+        return ParsedAnswer(parsed_answer=None, parse_status="not_found")
+    response_text = tokenizer.decode(generated_ids[close_idx + 1 :], skip_special_tokens=False)
+    return parse_answer(response_text)
+
+
 def _run_condition(
     item: PromptItem,
     condition: Literal["no_hint", "hint"],
@@ -53,8 +66,7 @@ def _run_condition(
         tokenizer, [{"role": "user", "content": message}], enable_thinking=generation_config.enable_thinking
     )
     result = generator.generate(rendered.input_ids, generation_config)
-    response_text = tokenizer.decode(result.generated_ids, skip_special_tokens=False)
-    parsed: ParsedAnswer = parse_answer(response_text)
+    parsed: ParsedAnswer = parse_generated_answer(tokenizer, result.generated_ids.tolist())
 
     record = PairRecord(
         pair_id=item.pair_id,

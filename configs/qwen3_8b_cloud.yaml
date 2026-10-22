@@ -24,7 +24,7 @@ generation:
   top_p: 0.95
   top_k: 20
   min_p: 0.0
-  max_new_tokens: 768
+  max_new_tokens: 4096
   seed: 0
   enable_thinking: true
 
